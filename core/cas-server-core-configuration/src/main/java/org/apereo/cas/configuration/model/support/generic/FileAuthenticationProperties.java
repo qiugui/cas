@@ -2,8 +2,11 @@ package org.apereo.cas.configuration.model.support.generic;
 
 import org.apereo.cas.configuration.model.core.authentication.PasswordEncoderProperties;
 import org.apereo.cas.configuration.model.core.authentication.PrincipalTransformationProperties;
+import org.apereo.cas.configuration.support.RequiresModule;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.core.io.Resource;
+
+import java.io.Serializable;
 
 /**
  * This is {@link FileAuthenticationProperties}.
@@ -11,19 +14,31 @@ import org.springframework.core.io.Resource;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
+@RequiresModule(name = "cas-server-support-generic")
+public class FileAuthenticationProperties implements Serializable {
 
-public class FileAuthenticationProperties {
-
+    private static final long serialVersionUID = 4031366217090049241L;
+    /**
+     * File resource where user accounts are kept.
+     */
     private Resource filename;
+    /**
+     * Separator character that distinguishes between usernames and passwords in the file.
+     */
     private String separator = "::";
 
+    /**
+     * Password encoder properties.
+     */
     @NestedConfigurationProperty
     private PasswordEncoderProperties passwordEncoder = new PasswordEncoderProperties();
 
     @NestedConfigurationProperty
-    private PrincipalTransformationProperties principalTransformation =
-            new PrincipalTransformationProperties();
+    private PrincipalTransformationProperties principalTransformation = new PrincipalTransformationProperties();
 
+    /**
+     * Authentication hanler name used to verify credentials in the file.
+     */
     private String name;
 
     public String getName() {

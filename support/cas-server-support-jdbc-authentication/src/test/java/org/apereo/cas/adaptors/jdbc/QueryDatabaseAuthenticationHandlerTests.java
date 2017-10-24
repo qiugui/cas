@@ -1,9 +1,14 @@
 package org.apereo.cas.adaptors.jdbc;
 
+import com.google.common.collect.Multimap;
+import org.apereo.cas.authentication.CoreAuthenticationUtils;
 import org.apereo.cas.authentication.CoreAuthenticationTestUtils;
+import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.exceptions.AccountDisabledException;
 import org.apereo.cas.authentication.exceptions.AccountPasswordMustChangeException;
+import org.apereo.cas.util.CollectionUtils;
+import org.apereo.cas.util.RandomUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,10 +31,10 @@ import javax.persistence.Id;
 import javax.security.auth.login.AccountNotFoundException;
 import javax.security.auth.login.FailedLoginException;
 import javax.sql.DataSource;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.HashMap;
 
 import static org.junit.Assert.*;
 
@@ -83,8 +88,8 @@ public class QueryDatabaseAuthenticationHandlerTests {
     }
 
     private static String getSqlInsertStatementToCreateUserAccount(final int i, final String expired, final String disabled) {
-        return String.format("insert into casusers (username, password, expired, disabled) values('%s', '%s', '%s', '%s');",
-                "user" + i, "psw" + i, expired, disabled);
+        return String.format("insert into casusers (username, password, expired, disabled, phone) values('%s', '%s', '%s', '%s', '%s');",
+                "user" + i, "psw" + i, expired, disabled, "123456789");
     }
 
     @Entity(name = "casusers")
@@ -104,66 +109,71 @@ public class QueryDatabaseAuthenticationHandlerTests {
 
         @Column
         private String disabled;
+
+        @Column
+        private String phone;
     }
 
     @Test
     public void verifyAuthenticationFailsToFindUser() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
-
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL, PASSWORD_FIELD, null,
+                null, new HashMap<>(0));
         this.thrown.expect(AccountNotFoundException.class);
-        this.thrown.expectMessage("usernotfound not found with SQL query");
-
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("usernotfound", "psw1"));
     }
 
     @Test
     public void verifyPasswordInvalid() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL, PASSWORD_FIELD,
+                null, null, new HashMap<>(0));
         this.thrown.expect(FailedLoginException.class);
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user1", "psw11"));
     }
 
     @Test
     public void verifyMultipleRecords() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL, PASSWORD_FIELD,
+                null, null, new HashMap<>(0));
         this.thrown.expect(FailedLoginException.class);
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user0", "psw0"));
     }
 
     @Test
     public void verifyBadQuery() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL.replace("*", "error"), PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL.replace("*", "error"),
+                PASSWORD_FIELD, null, null, new HashMap<>(0));
         this.thrown.expect(PreventedException.class);
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user0", "psw0"));
     }
 
     @Test
     public void verifySuccess() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
-        assertNotNull(q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user3", "psw3")));
+        final Multimap<String, String> map = CoreAuthenticationUtils.transformPrincipalAttributesListIntoMultiMap(Arrays.asList("phone:phoneNumber"));
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null,
+                this.dataSource, SQL, PASSWORD_FIELD,
+                null, null,
+                CollectionUtils.wrap(map));
+        final HandlerResult result = q.authenticate(
+                CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user3", "psw3"));
+        assertNotNull(result);
+        assertNotNull(result.getPrincipal());
+        assertTrue(result.getPrincipal().getAttributes().containsKey("phoneNumber"));
     }
 
     @Test
     public void verifyFindUserAndExpired() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, "expired", null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL, PASSWORD_FIELD,
+                "expired", null, new HashMap<>(0));
         this.thrown.expect(AccountPasswordMustChangeException.class);
-        this.thrown.expectMessage("Password has expired");
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user20", "psw20"));
         fail("Shouldn't get here");
     }
 
     @Test
     public void verifyFindUserAndDisabled() throws Exception {
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(SQL, PASSWORD_FIELD, null, "disabled");
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, SQL, PASSWORD_FIELD,
+                null, "disabled", new HashMap<>(0));
         this.thrown.expect(AccountDisabledException.class);
-        this.thrown.expectMessage("Account has been disabled");
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user21", "psw21"));
         fail("Shouldn't get here");
     }
@@ -176,10 +186,10 @@ public class QueryDatabaseAuthenticationHandlerTests {
      */
     @Test
     public void verifyBCryptFail() throws Exception {
-        final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(8, new SecureRandom("secret".getBytes(StandardCharsets.UTF_8)));
+        final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(8, RandomUtils.getInstanceNative());
         final String sql = SQL.replace("*", "'" + encoder.encode("pswbc1") + "' password");
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(sql, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, sql, PASSWORD_FIELD,
+                null, null, new HashMap<>(0));
         q.setPasswordEncoder(encoder);
         this.thrown.expect(FailedLoginException.class);
         q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user0", "pswbc1"));
@@ -191,10 +201,10 @@ public class QueryDatabaseAuthenticationHandlerTests {
      */
     @Test
     public void verifyBCryptSuccess() throws Exception {
-        final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(6, new SecureRandom("secret2".getBytes(StandardCharsets.UTF_8)));
+        final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(6, RandomUtils.getInstanceNative());
         final String sql = SQL.replace("*", "'" + encoder.encode("pswbc2") + "' password");
-        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler(sql, PASSWORD_FIELD, null, null);
-        q.setDataSource(this.dataSource);
+        final QueryDatabaseAuthenticationHandler q = new QueryDatabaseAuthenticationHandler("", null, null, null, this.dataSource, sql, PASSWORD_FIELD,
+                null, null, new HashMap<>(0));
 
         q.setPasswordEncoder(encoder);
         assertNotNull(q.authenticate(CoreAuthenticationTestUtils.getCredentialsWithDifferentUsernameAndPassword("user3", "pswbc2")));

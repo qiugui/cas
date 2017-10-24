@@ -2,17 +2,25 @@ package org.apereo.cas.adaptors.trusted.config;
 
 import org.apereo.cas.adaptors.trusted.authentication.handler.support.PrincipalBearingCredentialsAuthenticationHandler;
 import org.apereo.cas.adaptors.trusted.authentication.principal.PrincipalBearingPrincipalResolver;
+import org.apereo.cas.adaptors.trusted.authentication.principal.RemoteRequestPrincipalAttributesExtractor;
+import org.apereo.cas.adaptors.trusted.authentication.principal.ShibbolethServiceProviderRequestPrincipalAttributesExtractor;
+import org.apereo.cas.adaptors.trusted.web.flow.BasePrincipalFromNonInteractiveCredentialsAction;
+import org.apereo.cas.adaptors.trusted.web.flow.ChainingPrincipalFromRequestNonInteractiveCredentialsAction;
+import org.apereo.cas.adaptors.trusted.web.flow.PrincipalFromRequestHeaderNonInteractiveCredentialsAction;
 import org.apereo.cas.adaptors.trusted.web.flow.PrincipalFromRequestRemoteUserNonInteractiveCredentialsAction;
 import org.apereo.cas.adaptors.trusted.web.flow.PrincipalFromRequestUserPrincipalNonInteractiveCredentialsAction;
-import org.apereo.cas.authentication.AuthenticationEventExecutionPlan;
+import org.apereo.cas.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.authentication.AuthenticationHandler;
 import org.apereo.cas.authentication.adaptive.AdaptiveAuthenticationPolicy;
 import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalResolver;
-import org.apereo.cas.config.support.authentication.AuthenticationEventExecutionPlanConfigurer;
+import org.apereo.cas.authentication.principal.resolvers.ChainingPrincipalResolver;
+import org.apereo.cas.authentication.principal.resolvers.EchoingPrincipalResolver;
 import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.configuration.model.support.trusted.TrustedAuthenticationProperties;
 import org.apereo.cas.services.ServicesManager;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.flow.resolver.CasDelegatingWebflowEventResolver;
 import org.apereo.cas.web.flow.resolver.CasWebflowEventResolver;
 import org.apereo.services.persondir.IPersonAttributeDao;
@@ -29,6 +37,7 @@ import org.springframework.webflow.execution.Action;
  * This is {@link TrustedAuthenticationConfiguration}.
  *
  * @author Misagh Moayyed
+ * @author Dmitriy Kopylenko
  * @since 5.0.0
  */
 @Configuration("trustedAuthenticationConfiguration")
@@ -61,22 +70,20 @@ public class TrustedAuthenticationConfiguration {
     @Bean
     @RefreshScope
     public AuthenticationHandler principalBearingCredentialsAuthenticationHandler() {
-        final PrincipalBearingCredentialsAuthenticationHandler h = new PrincipalBearingCredentialsAuthenticationHandler();
-        h.setPrincipalFactory(trustedPrincipalFactory());
-        h.setServicesManager(servicesManager);
-        h.setName(casProperties.getAuthn().getTrusted().getName());
-        return h;
+        final TrustedAuthenticationProperties trusted = casProperties.getAuthn().getTrusted();
+        return new PrincipalBearingCredentialsAuthenticationHandler(trusted.getName(), servicesManager, trustedPrincipalFactory());
     }
 
     @Bean
     @RefreshScope
     public PrincipalResolver trustedPrincipalResolver() {
-        final PrincipalBearingPrincipalResolver r = new PrincipalBearingPrincipalResolver();
-        r.setAttributeRepository(this.attributeRepository);
-        r.setPrincipalAttributeName(casProperties.getAuthn().getTrusted().getPrincipalAttribute());
-        r.setReturnNullIfNoAttributes(casProperties.getAuthn().getTrusted().isReturnNull());
-        r.setPrincipalFactory(trustedPrincipalFactory());
-        return r;
+        final ChainingPrincipalResolver resolver = new ChainingPrincipalResolver();
+
+        final TrustedAuthenticationProperties trusted = casProperties.getAuthn().getTrusted();
+        final PrincipalBearingPrincipalResolver bearingPrincipalResolver = new PrincipalBearingPrincipalResolver(attributeRepository,
+                trustedPrincipalFactory(), trusted.isReturnNull(), trusted.getPrincipalAttribute());
+        resolver.setChain(CollectionUtils.wrapList(bearingPrincipalResolver, new EchoingPrincipalResolver()));
+        return resolver;
     }
 
     @ConditionalOnMissingBean(name = "trustedPrincipalFactory")
@@ -85,33 +92,59 @@ public class TrustedAuthenticationConfiguration {
         return new DefaultPrincipalFactory();
     }
 
+    @ConditionalOnMissingBean(name = "remoteRequestPrincipalAttributesExtractor")
     @Bean
-    @RefreshScope
-    public Action principalFromRemoteUserAction() {
+    public RemoteRequestPrincipalAttributesExtractor remoteRequestPrincipalAttributesExtractor() {
+        return new ShibbolethServiceProviderRequestPrincipalAttributesExtractor();
+    }
+
+    @Bean
+    public BasePrincipalFromNonInteractiveCredentialsAction principalFromRemoteUserAction() {
         return new PrincipalFromRequestRemoteUserNonInteractiveCredentialsAction(initialAuthenticationAttemptWebflowEventResolver,
                 serviceTicketRequestWebflowEventResolver,
                 adaptiveAuthenticationPolicy,
-                trustedPrincipalFactory());
+                trustedPrincipalFactory(),
+                remoteRequestPrincipalAttributesExtractor());
     }
 
     @Bean
-    @RefreshScope
-    public Action principalFromRemoteUserPrincipalAction() {
+    public BasePrincipalFromNonInteractiveCredentialsAction principalFromRemoteUserPrincipalAction() {
         return new PrincipalFromRequestUserPrincipalNonInteractiveCredentialsAction(initialAuthenticationAttemptWebflowEventResolver,
                 serviceTicketRequestWebflowEventResolver,
                 adaptiveAuthenticationPolicy,
-                trustedPrincipalFactory());
+                trustedPrincipalFactory(),
+                remoteRequestPrincipalAttributesExtractor());
     }
 
-    /**
-     * The type Trusted authentication event execution plan configuration.
-     */
-    @Configuration("trustedAuthenticationEventExecutionPlanConfiguration")
-    @EnableConfigurationProperties(CasConfigurationProperties.class)
-    public class TrustedAuthenticationEventExecutionPlanConfiguration implements AuthenticationEventExecutionPlanConfigurer {
-        @Override
-        public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
-            plan.registerAuthenticationHandlerWithPrincipalResolver(principalBearingCredentialsAuthenticationHandler(), trustedPrincipalResolver());
-        }
+    @Bean
+    public BasePrincipalFromNonInteractiveCredentialsAction principalFromRemoteHeaderPrincipalAction() {
+        final TrustedAuthenticationProperties trusted = casProperties.getAuthn().getTrusted();
+        return new PrincipalFromRequestHeaderNonInteractiveCredentialsAction(initialAuthenticationAttemptWebflowEventResolver,
+                serviceTicketRequestWebflowEventResolver,
+                adaptiveAuthenticationPolicy,
+                trustedPrincipalFactory(),
+                remoteRequestPrincipalAttributesExtractor(),
+                trusted.getRemotePrincipalHeader());
+    }
+
+    @ConditionalOnMissingBean(name = "remoteUserAuthenticationAction")
+    @Bean
+    public Action remoteUserAuthenticationAction() {
+        final ChainingPrincipalFromRequestNonInteractiveCredentialsAction chain =
+                new ChainingPrincipalFromRequestNonInteractiveCredentialsAction(initialAuthenticationAttemptWebflowEventResolver,
+                        serviceTicketRequestWebflowEventResolver,
+                        adaptiveAuthenticationPolicy,
+                        trustedPrincipalFactory(),
+                        remoteRequestPrincipalAttributesExtractor());
+        chain.addAction(principalFromRemoteUserAction());
+        chain.addAction(principalFromRemoteUserPrincipalAction());
+        chain.addAction(principalFromRemoteHeaderPrincipalAction());
+        return chain;
+    }
+
+    @ConditionalOnMissingBean(name = "trustedAuthenticationEventExecutionPlanConfigurer")
+    @Bean
+    public AuthenticationEventExecutionPlanConfigurer trustedAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> plan.registerAuthenticationHandlerWithPrincipalResolver(principalBearingCredentialsAuthenticationHandler(), trustedPrincipalResolver());
     }
 }

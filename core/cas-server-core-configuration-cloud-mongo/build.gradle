@@ -1,7 +1,6 @@
-description = "Apereo CAS Core Configuration - MongoDB"
+description = "Apereo CAS Core Configuration - MongoDb"
 dependencies {
-    compile libraries.springboot
-    compile libraries.spring
-    compile libraries.springcloud
-    compile libraries.mongo
+    implementation libraries.mongo
+    implementation project(":support:cas-server-support-mongo-core")
+    implementation project(":core:cas-server-core-configuration")
 }

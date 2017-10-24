@@ -2,7 +2,7 @@ package org.apereo.cas.web.support.config;
 
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.throttle.ThrottleProperties;
-import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.support.JpaBeans;
 import org.apereo.cas.web.support.InspektrThrottledSubmissionByIpAddressAndUsernameHandlerInterceptorAdapter;
 import org.apereo.cas.web.support.ThrottledSubmissionHandlerInterceptor;
 import org.apereo.inspektr.audit.AuditTrailManager;
@@ -30,13 +30,13 @@ public class CasJdbcThrottlingConfiguration {
 
     @Bean
     public DataSource inspektrAuditTrailDataSource() {
-        return Beans.newHickariDataSource(casProperties.getAuthn().getThrottle().getJdbc());
+        return JpaBeans.newDataSource(casProperties.getAuthn().getThrottle().getJdbc());
     }
 
     @Autowired
-    @Bean(name = {"inspektrIpAddressUsernameThrottle", "authenticationThrottle"})
+    @Bean
     @RefreshScope
-    public ThrottledSubmissionHandlerInterceptor inspektrIpAddressUsernameThrottle(@Qualifier("auditTrailManager") final AuditTrailManager auditTrailManager) {
+    public ThrottledSubmissionHandlerInterceptor authenticationThrottle(@Qualifier("auditTrailManager") final AuditTrailManager auditTrailManager) {
         final ThrottleProperties throttle = casProperties.getAuthn().getThrottle();
         final String appcode = throttle.getAppcode();
         final String sqlQueryAudit = throttle.getJdbc().getAuditQuery();

@@ -13,12 +13,15 @@ import org.apereo.cas.support.openid.web.OpenIdProviderController;
 import org.apereo.cas.support.openid.web.flow.OpenIdSingleSignOnAction;
 import org.apereo.cas.support.openid.web.mvc.OpenIdValidateController;
 import org.apereo.cas.support.openid.web.mvc.SmartOpenIdController;
+import org.apereo.cas.support.openid.web.mvc.YadisController;
 import org.apereo.cas.support.openid.web.support.DefaultOpenIdUserNameExtractor;
 import org.apereo.cas.support.openid.web.support.OpenIdPostUrlHandlerMapping;
 import org.apereo.cas.support.openid.web.support.OpenIdUserNameExtractor;
 import org.apereo.cas.ticket.proxy.ProxyHandler;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
-import org.apereo.cas.validation.ValidationSpecification;
+import org.apereo.cas.util.CollectionUtils;
+import org.apereo.cas.validation.CasProtocolValidationSpecification;
+import org.apereo.cas.validation.ValidationAuthorizer;
 import org.apereo.cas.web.AbstractDelegateController;
 import org.apereo.cas.web.DelegatingController;
 import org.apereo.cas.web.flow.resolver.CasDelegatingWebflowEventResolver;
@@ -38,8 +41,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.View;
 import org.springframework.webflow.execution.Action;
 
-import java.util.Arrays;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * This is {@link OpenIdConfiguration}.
@@ -83,11 +86,11 @@ public class OpenIdConfiguration {
     @Autowired
     @Qualifier("proxy20Handler")
     private ProxyHandler proxy20Handler;
-    
+
 
     @Autowired
     private CasConfigurationProperties casProperties;
-    
+
     @Autowired
     @Qualifier("centralAuthenticationService")
     private CentralAuthenticationService centralAuthenticationService;
@@ -102,8 +105,8 @@ public class OpenIdConfiguration {
 
     @Autowired
     @Qualifier("cas20WithoutProxyProtocolValidationSpecification")
-    private ValidationSpecification cas20WithoutProxyProtocolValidationSpecification;
-    
+    private CasProtocolValidationSpecification cas20WithoutProxyProtocolValidationSpecification;
+
     @Autowired
     @Qualifier("defaultMultifactorTriggerSelectionStrategy")
     private MultifactorTriggerSelectionStrategy multifactorTriggerSelectionStrategy;
@@ -111,16 +114,20 @@ public class OpenIdConfiguration {
     @Autowired
     @Qualifier("servicesManager")
     private ServicesManager servicesManager;
-    
+
     @Autowired
     @Qualifier("defaultTicketRegistrySupport")
     private TicketRegistrySupport ticketRegistrySupport;
 
+    @Autowired
+    @Qualifier("serviceValidationAuthorizers")
+    private Set<ValidationAuthorizer> validationAuthorizers;
+    
     @Bean
     public AbstractDelegateController smartOpenIdAssociationController() {
         return new SmartOpenIdController(serverManager(), casOpenIdAssociationSuccessView);
     }
-    
+
     @RefreshScope
     @Bean
     public ServerManager serverManager() {
@@ -131,11 +138,18 @@ public class OpenIdConfiguration {
         LOGGER.info("Creating openid server manager with OP endpoint [{}]", casProperties.getServer().getLoginUrl());
         return manager;
     }
-    
+
     @ConditionalOnMissingBean(name = "openIdServiceResponseBuilder")
     @Bean
     public ResponseBuilder openIdServiceResponseBuilder() {
         return new OpenIdServiceResponseBuilder(casProperties.getServer().getPrefix().concat("/openid"), serverManager(), centralAuthenticationService);
+    }
+
+
+    @Bean
+    @RefreshScope
+    public YadisController yadisController() {
+        return new YadisController();
     }
 
 
@@ -159,23 +173,18 @@ public class OpenIdConfiguration {
     @Autowired
     @Bean
     public OpenIdPostUrlHandlerMapping openIdPostUrlHandlerMapping(@Qualifier("argumentExtractor") final ArgumentExtractor argumentExtractor) {
-        final OpenIdValidateController c = new OpenIdValidateController(serverManager());
-        c.setValidationSpecification(this.cas20WithoutProxyProtocolValidationSpecification);
-        c.setSuccessView(casOpenIdServiceSuccessView);
-        c.setFailureView(casOpenIdServiceFailureView);
-        c.setProxyHandler(proxy20Handler);
-        c.setAuthenticationSystemSupport(authenticationSystemSupport);
-        c.setServicesManager(servicesManager);
-        c.setCentralAuthenticationService(centralAuthenticationService);
-        c.setArgumentExtractor(argumentExtractor);
-        c.setMultifactorTriggerSelectionStrategy(multifactorTriggerSelectionStrategy);
-        c.setAuthenticationContextValidator(authenticationContextValidator);
-        c.setJsonView(cas3ServiceJsonView);
-        c.setAuthnContextAttribute(casProperties.getAuthn().getMfa().getAuthenticationContextAttribute());
-
-        final DelegatingController controller = new DelegatingController();
-        controller.setDelegates(Arrays.asList(smartOpenIdAssociationController(), c));
+        final OpenIdValidateController c = new OpenIdValidateController(cas20WithoutProxyProtocolValidationSpecification,
+                authenticationSystemSupport, servicesManager,
+                centralAuthenticationService, proxy20Handler,
+                argumentExtractor, multifactorTriggerSelectionStrategy,
+                authenticationContextValidator, cas3ServiceJsonView,
+                casOpenIdServiceSuccessView, casOpenIdServiceFailureView,
+                casProperties.getAuthn().getMfa().getAuthenticationContextAttribute(),
+                serverManager(), validationAuthorizers);
         
+        final DelegatingController controller = new DelegatingController();
+        controller.setDelegates(CollectionUtils.wrapList(smartOpenIdAssociationController(), c));
+
         final OpenIdPostUrlHandlerMapping m = new OpenIdPostUrlHandlerMapping();
         m.setOrder(1);
         final Properties mappings = new Properties();

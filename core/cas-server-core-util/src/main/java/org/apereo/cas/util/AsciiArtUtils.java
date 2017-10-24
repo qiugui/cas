@@ -1,7 +1,6 @@
 package org.apereo.cas.util;
 
 import com.github.lalyos.jfiglet.FigletFont;
-import com.google.common.base.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 
@@ -37,16 +36,21 @@ public final class AsciiArtUtils {
      * @param asciiArt   the ascii art
      * @param additional the additional
      */
-    public static void printAsciiArt(final Logger out, final String asciiArt, final String additional) {
+    public static void printAsciiArt(final PrintStream out, final String asciiArt, final String additional) {
         try {
-            out.warn(ANSI_CYAN);
-            out.warn("\n\n".concat(FigletFont.convertOneLine(asciiArt)).concat(additional));
-            out.warn(ANSI_RESET);
+            out.println(ANSI_CYAN);
+            if (StringUtils.isNotBlank(additional)) {
+                out.println(FigletFont.convertOneLine(asciiArt));
+                out.println(additional);
+            } else {
+                out.print(FigletFont.convertOneLine(asciiArt));
+            }
+            out.println(ANSI_RESET);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
-
+    
     /**
      * Print ascii art.
      *
@@ -54,17 +58,31 @@ public final class AsciiArtUtils {
      * @param asciiArt   the ascii art
      * @param additional the additional
      */
-    public static void printAsciiArt(final PrintStream out, final String asciiArt, final String additional) {
+    public static void printAsciiArtWarning(final Logger out, final String asciiArt, final String additional) {
         try {
-            out.println();
-            out.println(ANSI_CYAN);
-            out.println(FigletFont.convertOneLine(asciiArt));
-            if (StringUtils.isNotBlank(additional)) {
-                out.println(additional);
-            }
-            out.println(ANSI_RESET);
+            out.warn(ANSI_CYAN);
+            out.warn("\n\n".concat(FigletFont.convertOneLine(asciiArt)).concat(additional));
+            out.warn(ANSI_RESET);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
+
+    /**
+     * Print ascii art info.
+     *
+     * @param out        the out
+     * @param asciiArt   the ascii art
+     * @param additional the additional
+     */
+    public static void printAsciiArtInfo(final Logger out, final String asciiArt, final String additional) {
+        try {
+            out.info(ANSI_CYAN);
+            out.info("\n\n".concat(FigletFont.convertOneLine(asciiArt)).concat(additional));
+            out.info(ANSI_RESET);
+        } catch (final Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+
 }

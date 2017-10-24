@@ -19,7 +19,7 @@ import javax.persistence.Entity;
  * a given proxy granting ticket.
  * <p>
  * NOTE: A PGT shares the same implementation as a {@link TicketGrantingTicket}.
- * The intension of this implementation at this point is make explicit and visible
+ * The intention of this implementation at this point is make explicit and visible
  * the use and declaration of a PGT per the CAS protocol.
  *
  * @author Misagh Moayyed
@@ -85,4 +85,8 @@ public class ProxyGrantingTicketImpl extends TicketGrantingTicketImpl implements
         return serviceTicket;
     }
 
+    @Override
+    public String getPrefix() {
+        return ProxyGrantingTicket.PROXY_GRANTING_TICKET_PREFIX;
+    }
 }

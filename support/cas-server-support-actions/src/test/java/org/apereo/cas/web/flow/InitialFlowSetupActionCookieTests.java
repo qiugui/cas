@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockServletContext;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.webflow.context.servlet.ServletExternalContext;
 import org.springframework.webflow.test.MockRequestContext;
@@ -35,7 +34,6 @@ import static org.mockito.Mockito.*;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
-@ContextConfiguration(locations = "classpath:/core-context.xml")
 @TestPropertySource(properties = "spring.aop.proxy-target-class=true")
 @Import(CasSupportActionsConfiguration.class)
 public class InitialFlowSetupActionCookieTests extends AbstractCentralAuthenticationServiceTests {
@@ -52,11 +50,13 @@ public class InitialFlowSetupActionCookieTests extends AbstractCentralAuthentica
 
     @Before
     public void setUp() throws Exception {
-        this.warnCookieGenerator = new CookieRetrievingCookieGenerator("warn", "", 2, false, null);
+        this.warnCookieGenerator = new CookieRetrievingCookieGenerator("warn", "", 2,
+                false, null, false);
         this.warnCookieGenerator.setCookiePath(StringUtils.EMPTY);
-        this.tgtCookieGenerator = new CookieRetrievingCookieGenerator("tgt", "", 2, false, null);
+        this.tgtCookieGenerator = new CookieRetrievingCookieGenerator("tgt", "", 2, 
+                false, null, false);
         this.tgtCookieGenerator.setCookiePath(StringUtils.EMPTY);
-
+        
         final List<ArgumentExtractor> argExtractors = Collections.singletonList(new DefaultArgumentExtractor(new WebApplicationServiceFactory()));
         final ServicesManager servicesManager = mock(ServicesManager.class);
         when(servicesManager.findServiceBy(any(Service.class))).thenReturn(RegisteredServiceTestUtils.getRegisteredService("test"));

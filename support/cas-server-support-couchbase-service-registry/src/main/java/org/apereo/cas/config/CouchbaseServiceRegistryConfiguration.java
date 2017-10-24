@@ -5,7 +5,7 @@ import org.apereo.cas.configuration.model.support.couchbase.serviceregistry.Couc
 import org.apereo.cas.couchbase.core.CouchbaseClientFactory;
 import org.apereo.cas.services.CouchbaseServiceRegistryDao;
 import org.apereo.cas.services.ServiceRegistryDao;
-import org.apereo.cas.util.services.RegisteredServiceJsonSerializer;
+import org.apereo.cas.services.util.DefaultRegisteredServiceJsonSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
@@ -24,7 +24,7 @@ import java.util.Set;
 @Configuration("couchbaseServiceRegistryConfiguration")
 @EnableConfigurationProperties(CasConfigurationProperties.class)
 public class CouchbaseServiceRegistryConfiguration {
-
+    
     @Autowired
     private CasConfigurationProperties casProperties;
 
@@ -38,13 +38,16 @@ public class CouchbaseServiceRegistryConfiguration {
     public CouchbaseClientFactory serviceRegistryCouchbaseClientFactory() {
         final CouchbaseServiceRegistryProperties couchbase = casProperties.getServiceRegistry().getCouchbase();
         final Set<String> nodes = StringUtils.commaDelimitedListToSet(couchbase.getNodeSet());
-        return new CouchbaseClientFactory(nodes, couchbase.getBucket(), couchbase.getPassword(), couchbase.getTimeout());
+        return new CouchbaseClientFactory(nodes, couchbase.getBucket(),
+                couchbase.getPassword(), couchbase.getTimeout(),
+                CouchbaseServiceRegistryDao.UTIL_DOCUMENT,
+                CouchbaseServiceRegistryDao.ALL_VIEWS);
     }
 
-    @Bean(name = {"couchbaseServiceRegistryDao", "serviceRegistryDao"})
+    @Bean
     @RefreshScope
-    public ServiceRegistryDao couchbaseServiceRegistryDao() {
-        return new CouchbaseServiceRegistryDao(serviceRegistryCouchbaseClientFactory(), new RegisteredServiceJsonSerializer(),
+    public ServiceRegistryDao serviceRegistryDao() {
+        return new CouchbaseServiceRegistryDao(serviceRegistryCouchbaseClientFactory(), new DefaultRegisteredServiceJsonSerializer(),
                 casProperties.getServiceRegistry().getCouchbase().isQueryEnabled());
     }
 }

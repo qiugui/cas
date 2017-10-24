@@ -19,11 +19,11 @@ public class DefaultMessageDescriptor implements MessageDescriptor {
     /** Serialization support. */
     private static final long serialVersionUID = 1227390629186486032L;
 
-    private String code;
+    private final String code;
 
-    private String defaultMessage;
+    private final String defaultMessage;
 
-    private Serializable[] params;
+    private final Serializable[] params;
 
     /**
      * Instantiates a new message.
@@ -83,7 +83,7 @@ public class DefaultMessageDescriptor implements MessageDescriptor {
 
     @Override
     public boolean equals(final Object other) {
-        if (other == null || !(other instanceof DefaultMessageDescriptor)) {
+        if (!(other instanceof DefaultMessageDescriptor)) {
             return false;
         }
         if (other == this) {

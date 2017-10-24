@@ -3,6 +3,7 @@ package org.apereo.cas.mgmt.config;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.mgmt.services.audit.Pac4jAuditablePrincipalResolver;
 import org.apereo.cas.mgmt.services.audit.ServiceManagementResourceResolver;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.inspektr.audit.AuditTrailManagementAspect;
 import org.apereo.inspektr.audit.AuditTrailManager;
 import org.apereo.inspektr.audit.spi.AuditActionResolver;
@@ -13,14 +14,12 @@ import org.apereo.inspektr.audit.spi.support.ParametersAsStringResourceResolver;
 import org.apereo.inspektr.audit.support.Slf4jLoggingAuditTrailManager;
 import org.apereo.inspektr.common.spi.PrincipalResolver;
 import org.apereo.inspektr.common.web.ClientInfoThreadLocalFilter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,10 +35,6 @@ public class CasManagementAuditConfiguration {
     private static final String AUDIT_ACTION_SUFFIX_FAILED = "_FAILED";
     private static final String AUDIT_ACTION_SUFFIX_SUCCESS = "_SUCCESS";
 
-    @Autowired
-    private CasConfigurationProperties casProperties;
-
-    
     @Bean
     public AuditResourceResolver saveServiceResourceResolver() {
         return new ParametersAsStringResourceResolver();
@@ -68,14 +63,14 @@ public class CasManagementAuditConfiguration {
     @Bean
     public AuditTrailManagementAspect auditTrailManagementAspect() {
         return new AuditTrailManagementAspect("CAS_Management",
-                auditablePrincipalResolver(), Collections.singletonList(slf4jAuditTrailManager()),
+                auditablePrincipalResolver(), CollectionUtils.wrap(auditTrailManager()),
                 auditActionResolverMap(),
                 auditResourceResolverMap());
     }
 
-    @Bean(name = {"slf4jAuditTrailManager", "auditTrailManager"})
+    @Bean
     @RefreshScope
-    public AuditTrailManager slf4jAuditTrailManager() {
+    public AuditTrailManager auditTrailManager() {
         return new Slf4jLoggingAuditTrailManager();
     }
 
@@ -99,7 +94,7 @@ public class CasManagementAuditConfiguration {
     public FilterRegistrationBean casClientInfoLoggingFilter() {
         final FilterRegistrationBean bean = new FilterRegistrationBean();
         bean.setFilter(new ClientInfoThreadLocalFilter());
-        bean.setUrlPatterns(Collections.singleton("/*"));
+        bean.setUrlPatterns(CollectionUtils.wrap("/*"));
         bean.setName("CAS Client Info Logging Filter");
         bean.setAsyncSupported(true);
         return bean;

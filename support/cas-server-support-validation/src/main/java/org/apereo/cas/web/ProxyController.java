@@ -9,15 +9,17 @@ import org.apereo.cas.authentication.principal.WebApplicationService;
 import org.apereo.cas.services.UnauthorizedServiceException;
 import org.apereo.cas.ticket.AbstractTicketException;
 import org.apereo.cas.ticket.proxy.ProxyTicket;
+import org.apereo.cas.util.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.View;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.Map;
 
 /**
  * The ProxyController is involved with returning a Proxy Ticket (in CAS 2
@@ -34,24 +36,13 @@ import javax.servlet.http.HttpServletResponse;
  * @author Scott Battaglia
  * @since 3.0.0
  */
-@Controller("proxyController")
-public class ProxyController {
+public class ProxyController extends AbstractDelegateController {
+    /** The view to redirect to on a successful validation. */
+    private final View successView;
 
-    /**
-     * View for if the creation of a "Proxy" Ticket Fails.
-     */
-    private static final String CONST_PROXY_FAILURE = "cas2ProxyFailureView";
-
-    /**
-     * View for if the creation of a "Proxy" Ticket Succeeds.
-     */
-    private static final String CONST_PROXY_SUCCESS = "cas2ProxySuccessView";
-
-    /**
-     * Key to use in model for service tickets.
-     */
-    private static final String MODEL_SERVICE_TICKET = "ticket";
-
+    /** The view to redirect to on a validation failure. */
+    private final View failureView;
+    
     private final CentralAuthenticationService centralAuthenticationService;
     private final ServiceFactory webApplicationServiceFactory;
 
@@ -63,11 +54,24 @@ public class ProxyController {
      *
      * @param centralAuthenticationService the central authentication service
      * @param webApplicationServiceFactory the web application service factory
+     * @param successView                  the success view
+     * @param failureView                  the failure view
      */
     public ProxyController(final CentralAuthenticationService centralAuthenticationService,
-                           final ServiceFactory<WebApplicationService> webApplicationServiceFactory) {
+                           final ServiceFactory<WebApplicationService> webApplicationServiceFactory,
+                           final View successView,
+                           final View failureView) {
         this.centralAuthenticationService = centralAuthenticationService;
+        this.failureView = failureView;
+        this.successView = successView;
         this.webApplicationServiceFactory = webApplicationServiceFactory;
+    }
+
+    @Override
+    public boolean canHandle(final HttpServletRequest request, final HttpServletResponse response) {
+        final String proxyGrantingTicket = request.getParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET);
+        final Service targetService = getTargetService(request);
+        return StringUtils.hasText(proxyGrantingTicket) && targetService != null;
     }
 
     /**
@@ -89,7 +93,8 @@ public class ProxyController {
 
         try {
             final ProxyTicket proxyTicket = this.centralAuthenticationService.grantProxyTicket(proxyGrantingTicket, targetService);
-            return new ModelAndView(CONST_PROXY_SUCCESS, MODEL_SERVICE_TICKET, proxyTicket);
+            final Map model = CollectionUtils.wrap(CasProtocolConstants.PARAMETER_TICKET, proxyTicket);
+            return new ModelAndView(this.successView, model);
         } catch (final AbstractTicketException e) {
             return generateErrorView(e.getCode(), new Object[]{proxyGrantingTicket}, request);
         } catch (final UnauthorizedServiceException e) {
@@ -109,16 +114,17 @@ public class ProxyController {
 
     /**
      * Generate error view stuffing the code and description
-     * of the error into the model. View name is set to {@link #CONST_PROXY_FAILURE}.
+     * of the error into the model. View name is set to {@link #failureView}.
      *
-     * @param code        the code
-     * @param args        the msg args
+     * @param code the code
+     * @param args the msg args
      * @return the model and view
      */
     private ModelAndView generateErrorView(final String code, final Object[] args, final HttpServletRequest request) {
-        final ModelAndView modelAndView = new ModelAndView(CONST_PROXY_FAILURE);
+        final ModelAndView modelAndView = new ModelAndView(this.failureView);
         modelAndView.addObject("code", StringEscapeUtils.escapeHtml4(code));
-        modelAndView.addObject("description", StringEscapeUtils.escapeHtml4(this.context.getMessage(code, args, code, request.getLocale())));
+        final String desc = StringEscapeUtils.escapeHtml4(this.context.getMessage(code, args, code, request.getLocale()));
+        modelAndView.addObject("description", desc);
         return modelAndView;
     }
 

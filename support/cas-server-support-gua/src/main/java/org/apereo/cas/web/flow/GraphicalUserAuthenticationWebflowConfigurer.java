@@ -1,6 +1,8 @@
 package org.apereo.cas.web.flow;
 
-import org.apereo.cas.configuration.model.support.gua.GraphicalUserAuthenticationProperties;
+import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.web.flow.configurer.AbstractCasWebflowConfigurer;
+import org.springframework.context.ApplicationContext;
 import org.springframework.webflow.definition.registry.FlowDefinitionRegistry;
 import org.springframework.webflow.engine.ActionState;
 import org.springframework.webflow.engine.Flow;
@@ -24,20 +26,18 @@ public class GraphicalUserAuthenticationWebflowConfigurer extends AbstractCasWeb
     private static final String STATE_ID_GUA_GET_USERID = "guaGetUserIdView";
     private static final String STATE_ID_GUA_DISPLAY_USER_GFX = "guaDisplayUserGraphics";
 
-    private final GraphicalUserAuthenticationProperties guaProperties;
-
     public GraphicalUserAuthenticationWebflowConfigurer(final FlowBuilderServices flowBuilderServices,
                                                         final FlowDefinitionRegistry loginFlowDefinitionRegistry,
-                                                        final GraphicalUserAuthenticationProperties gua) {
-        super(flowBuilderServices, loginFlowDefinitionRegistry);
-        this.guaProperties = gua;
+                                                        final ApplicationContext applicationContext,
+                                                        final CasConfigurationProperties casProperties) {
+        super(flowBuilderServices, loginFlowDefinitionRegistry, applicationContext, casProperties);
     }
 
     @Override
     protected void doInitialize() throws Exception {
         final Flow flow = getLoginFlow();
         if (flow != null) {
-            final ActionState state = (ActionState) flow.getState(CasWebflowConstants.STATE_ID_INIT_LOGIN_FORM);
+            final ActionState state = getState(flow, CasWebflowConstants.STATE_ID_INIT_LOGIN_FORM, ActionState.class);
             final Transition transition = (Transition) state.getTransition(CasWebflowConstants.TRANSITION_ID_SUCCESS);
             final String targetStateId = transition.getTargetStateId();
 

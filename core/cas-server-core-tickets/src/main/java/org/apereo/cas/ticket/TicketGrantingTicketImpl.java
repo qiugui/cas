@@ -6,29 +6,23 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.principal.Service;
-import org.apereo.cas.ticket.proxy.ProxyGrantingTicket;
 import org.springframework.util.Assert;
 
 import javax.persistence.Column;
 import javax.persistence.DiscriminatorColumn;
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
-import javax.persistence.FetchType;
 import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Concrete implementation of a TicketGrantingTicket. A TicketGrantingTicket is
@@ -52,7 +46,7 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
      * Unique Id for serialization.
      */
     private static final long serialVersionUID = -8608149809180911599L;
-    
+
     /**
      * The authenticated object for which this ticket was generated for.
      */
@@ -89,9 +83,16 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
     /**
      * The PGTs associated to this ticket.
      */
-    @OneToMany(targetEntity = TicketGrantingTicketImpl.class, mappedBy = "ticketGrantingTicket", fetch = FetchType.EAGER)
-    @JsonIgnore
-    private Set<ProxyGrantingTicket> proxyGrantingTickets = new HashSet<>();
+    @Lob
+    @Column(name = "PROXY_GRANTING_TICKETS", nullable = false, length = Integer.MAX_VALUE)
+    private HashMap<String, Service> proxyGrantingTickets = new HashMap<>();
+
+    /**
+     * The ticket ids which are tied to this ticket.
+     */
+    @Lob
+    @Column(name = "DESCENDANT_TICKETS", nullable = false, length = Integer.MAX_VALUE)
+    private HashSet<String> descendantTickets = new HashSet<>();
 
     /**
      * Instantiates a new ticket granting ticket impl.
@@ -110,16 +111,11 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
      * @param policy                     the expiration policy for this ticket.
      */
     @JsonCreator
-    public TicketGrantingTicketImpl(@JsonProperty("id")
-                                    final String id,
-                                    @JsonProperty("proxiedBy")
-                                    final Service proxiedBy,
-                                    @JsonProperty("grantingTicket")
-                                    final TicketGrantingTicket parentTicketGrantingTicket,
-                                    @JsonProperty("authentication")
-                                    final Authentication authentication,
-                                    @JsonProperty("expirationPolicy")
-                                    final ExpirationPolicy policy) {
+    public TicketGrantingTicketImpl(@JsonProperty("id") final String id,
+                                    @JsonProperty("proxiedBy") final Service proxiedBy,
+                                    @JsonProperty("grantingTicket") final TicketGrantingTicket parentTicketGrantingTicket,
+                                    @JsonProperty("authentication") final Authentication authentication,
+                                    @JsonProperty("expirationPolicy") final ExpirationPolicy policy) {
 
         super(id, policy);
 
@@ -140,8 +136,7 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
      * @param authentication the Authentication request for this ticket
      * @param policy         the expiration policy for this ticket.
      */
-    public TicketGrantingTicketImpl(final String id,
-                                    final Authentication authentication, final ExpirationPolicy policy) {
+    public TicketGrantingTicketImpl(final String id, final Authentication authentication, final ExpirationPolicy policy) {
         this(id, null, null, authentication, policy);
     }
 
@@ -163,8 +158,7 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
      * configuration, the ticket may be considered expired.
      */
     @Override
-    public synchronized ServiceTicket grantServiceTicket(final String id,
-                                                         final Service service, final ExpirationPolicy expirationPolicy,
+    public synchronized ServiceTicket grantServiceTicket(final String id, final Service service, final ExpirationPolicy expirationPolicy,
                                                          final boolean credentialProvided, final boolean onlyTrackMostRecentSession) {
 
         final ServiceTicket serviceTicket = new ServiceTicketImpl(id, this,
@@ -185,9 +179,7 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
     protected void trackServiceSession(final String id, final Service service, final boolean onlyTrackMostRecentSession) {
         update();
 
-        final List<Authentication> authentications = getChainedAuthentications();
-        service.setPrincipal(authentications.get(authentications.size() - 1).getPrincipal());
-
+        service.setPrincipal(getRoot().getAuthentication().getPrincipal().getId());
         if (onlyTrackMostRecentSession) {
             final String path = normalizePath(service);
             final Collection<Service> existingServices = this.services.values();
@@ -222,9 +214,9 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
     public synchronized Map<String, Service> getServices() {
         return new HashMap<>(this.services);
     }
-
+    
     @Override
-    public Collection<ProxyGrantingTicket> getProxyGrantingTickets() {
+    public Map<String, Service> getProxyGrantingTickets() {
         return this.proxyGrantingTickets;
     }
 
@@ -246,7 +238,6 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
         return this.getGrantingTicket() == null;
     }
 
-
     @Override
     public void markTicketExpired() {
         this.expired = Boolean.TRUE;
@@ -255,13 +246,11 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
     @JsonIgnore
     @Override
     public TicketGrantingTicket getRoot() {
-        TicketGrantingTicket current = this;
-        TicketGrantingTicket parent = current.getGrantingTicket();
-        while (parent != null) {
-            current = parent;
-            parent = current.getGrantingTicket();
+        final TicketGrantingTicket parent = getGrantingTicket();
+        if (parent == null) {
+            return this;
         }
-        return current;
+        return parent.getRoot();
     }
 
     /**
@@ -270,6 +259,7 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
      * @return if the TGT is expired.
      */
     @Override
+    @JsonIgnore
     public boolean isExpiredInternal() {
         return this.expired;
     }
@@ -282,11 +272,11 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
         list.add(getAuthentication());
 
         if (getGrantingTicket() == null) {
-            return Collections.unmodifiableList(list);
+            return new ArrayList<>(list);
         }
 
         list.addAll(getGrantingTicket().getChainedAuthentications());
-        return Collections.unmodifiableList(list);
+        return new ArrayList<>(list);
     }
 
     @Override
@@ -294,23 +284,13 @@ public class TicketGrantingTicketImpl extends AbstractTicket implements TicketGr
         return this.proxiedBy;
     }
 
+    @Override
+    public String getPrefix() {
+        return TicketGrantingTicket.PREFIX;
+    }
 
     @Override
-    public boolean equals(final Object object) {
-        if (object == null) {
-            return false;
-        }
-        if (object == this) {
-            return true;
-        }
-        if (!(object instanceof TicketGrantingTicket)) {
-            return false;
-        }
-
-        final Ticket ticket = (Ticket) object;
-
-        return new EqualsBuilder()
-                .append(ticket.getId(), this.getId())
-                .isEquals();
+    public Collection getDescendantTickets() {
+        return descendantTickets;
     }
 }

@@ -1,16 +1,18 @@
 description = "Apereo CAS RADIUS RSA MFA Support"
-dependencies {
-    compile project(":core:cas-server-core-webflow")
-    compile project(":core:cas-server-core-web")
-    compile project(":support:cas-server-support-radius-core")
-    compileOnly project(":support:cas-server-support-trusted-mfa")
+
+repositories {
+    maven { url "https://jitpack.io" }
+    jcenter()
 }
 
-
-configurations.all {
-    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-        if (details.requested.group == "gnu-getopt") {
-            details.useTarget group: "gnu.getopt", name: "java-getopt", version: details.requested.version
-        }
-    }
+dependencies {
+    implementation project(":core:cas-server-core-webflow")
+    implementation project(":core:cas-server-core-web")
+    api project(":api:cas-server-core-api-webflow")
+    api project(":api:cas-server-core-api")
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":core:cas-server-core-configuration")
+    implementation project(":core:cas-server-core-services")
+    implementation project(":support:cas-server-support-radius-core")
+    compileOnly project(":support:cas-server-support-trusted-mfa")
 }

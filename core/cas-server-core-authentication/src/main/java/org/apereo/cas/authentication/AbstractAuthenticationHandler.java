@@ -6,6 +6,8 @@ import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
 import org.apereo.cas.services.ServicesManager;
 
+import java.util.function.Predicate;
+
 /**
  * Base class for all authentication handlers that support configurable naming.
  *
@@ -17,77 +19,66 @@ public abstract class AbstractAuthenticationHandler implements AuthenticationHan
     /**
      * Factory to create the principal type.
      **/
-    protected PrincipalFactory principalFactory = new DefaultPrincipalFactory();
+    protected final PrincipalFactory principalFactory;
 
     /**
      * The services manager instance, as the entry point to the registry.
      **/
-    protected ServicesManager servicesManager;
+    protected final ServicesManager servicesManager;
 
     /**
-     * Configurable handler name.
+     * Indicates whether this handler is able to support the credentials passed to
+     * operate on it and validate. Default is true.
      */
-    private String name;
-
-    private Integer order;
-
-    /**
-     * Instantiates a new Abstract authentication handler.
-     */
-    public AbstractAuthenticationHandler() {
-    }
-
-    @Override
-    public String getName() {
-        return StringUtils.isNotBlank(this.name) ? this.name : getClass().getSimpleName();
-    }
-
+    protected Predicate<Credential> credentialSelectionPredicate = credential -> true;
+    
     /**
      * Sets the authentication handler name. Authentication handler names SHOULD be unique within an
      * {@link AuthenticationManager}, and particular implementations
      * may require uniqueness. Uniqueness is a best
      * practice generally.
-     *
-     * @param name Handler name.
      */
-    public void setName(final String name) {
-        this.name = name;
-    }
-
-    /**
-     * Sets principal factory to create principal objects.
-     *
-     * @param principalFactory the principal factory
-     */
-    public void setPrincipalFactory(final PrincipalFactory principalFactory) {
-        this.principalFactory = principalFactory;
-    }
-
-    public void setServicesManager(final ServicesManager servicesManager) {
-        this.servicesManager = servicesManager;
-    }
+    private final String name;
 
     /**
      * Sets order. If order is undefined, generates a random order value.
      * Since handlers are generally sorted by this order, it's important that
      * order numbers be unique on a best-effort basis.
+     */
+    private final int order;
+    
+    
+    /**
+     * Instantiates a new Abstract authentication handler.
      *
+     * @param name Handler name.
+     * @param servicesManager the services manager.
+     * @param principalFactory the principal factory
      * @param order the order
      */
-    public void setOrder(final Integer order) {
-        this.order = order;
-        ensureOrderIsProvidedIfNecessary();
+    public AbstractAuthenticationHandler(final String name, final ServicesManager servicesManager, final PrincipalFactory principalFactory,
+                                         final Integer order) {
+        this.name = StringUtils.isNotBlank(name) ? name : getClass().getSimpleName();
+        this.servicesManager = servicesManager;
+        this.principalFactory = principalFactory == null ? new DefaultPrincipalFactory() : principalFactory;
+        if (order == null) {
+            this.order = RandomUtils.nextInt(1, Integer.MAX_VALUE);
+        } else {
+            this.order = order;
+        }
+    }
+
+    @Override
+    public String getName() {
+        return this.name;
     }
 
     @Override
     public int getOrder() {
-        ensureOrderIsProvidedIfNecessary();
         return this.order;
     }
 
-    private void ensureOrderIsProvidedIfNecessary() {
-        if (this.order == null) {
-            this.order = RandomUtils.nextInt(1, Integer.MAX_VALUE);
-        }
+    public void setCredentialSelectionPredicate(final Predicate<Credential> credentialSelectionPredicate) {
+        this.credentialSelectionPredicate = credentialSelectionPredicate;
     }
 }

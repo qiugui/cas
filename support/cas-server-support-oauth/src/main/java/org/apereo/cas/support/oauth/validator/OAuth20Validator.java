@@ -6,12 +6,15 @@ import org.apereo.cas.authentication.principal.WebApplicationService;
 import org.apereo.cas.services.RegisteredService;
 import org.apereo.cas.services.RegisteredServiceAccessStrategyUtils;
 import org.apereo.cas.services.UnauthorizedServiceException;
-import org.apereo.cas.support.oauth.OAuthConstants;
+import org.apereo.cas.support.oauth.OAuth20Constants;
+import org.apereo.cas.support.oauth.OAuth20ResponseTypes;
 import org.apereo.cas.support.oauth.services.OAuthRegisteredService;
+import org.apereo.cas.support.oauth.util.OAuth20Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.stream.Stream;
 
 /**
  * Validate OAuth inputs.
@@ -20,10 +23,9 @@ import javax.servlet.http.HttpServletRequest;
  * @since 5.0.0
  */
 public class OAuth20Validator {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(OAuth20Validator.class);
 
-    private ServiceFactory<WebApplicationService> webApplicationServiceServiceFactory;
+    private final ServiceFactory<WebApplicationService> webApplicationServiceServiceFactory;
 
     public OAuth20Validator(final ServiceFactory<WebApplicationService> webApplicationServiceServiceFactory) {
         this.webApplicationServiceServiceFactory = webApplicationServiceServiceFactory;
@@ -40,7 +42,7 @@ public class OAuth20Validator {
         final String parameter = request.getParameter(name);
         LOGGER.debug("[{}]: [{}]", name, parameter);
         if (StringUtils.isBlank(parameter)) {
-            LOGGER.error("Missing: [{}]", name);
+            LOGGER.error("Missing request parameter: [{}]", name);
             return false;
         }
         return true;
@@ -54,6 +56,7 @@ public class OAuth20Validator {
      */
     public boolean checkServiceValid(final RegisteredService registeredService) {
         if (registeredService == null) {
+            LOGGER.warn("Provided registered service cannot be null and must be defined");
             return false;
         }
 
@@ -63,6 +66,7 @@ public class OAuth20Validator {
             RegisteredServiceAccessStrategyUtils.ensureServiceAccessIsAllowed(service, registeredService);
             return true;
         } catch (final UnauthorizedServiceException e) {
+            LOGGER.warn("Registered service access is not allowed for [{}]", registeredService.getServiceId());
             return false;
         }
     }
@@ -78,7 +82,10 @@ public class OAuth20Validator {
         final String registeredServiceId = registeredService.getServiceId();
         LOGGER.debug("Found: [{}] vs redirectUri: [{}]", registeredService, redirectUri);
         if (!redirectUri.matches(registeredServiceId)) {
-            LOGGER.error("Unsupported [{}]: [{}] for registeredServiceId: [{}]", OAuthConstants.REDIRECT_URI, redirectUri, registeredServiceId);
+            LOGGER.error("Unsupported [{}]: [{}] does not match what is defined for registered service: [{}]. "
+                    + "Service is considered unauthorized. Verify the service definition in the registry is correct "
+                    + "and does in fact match the client [{}]",
+                    OAuth20Constants.REDIRECT_URI, redirectUri, registeredServiceId, redirectUri);
             return false;
         }
         return true;
@@ -98,5 +105,21 @@ public class OAuth20Validator {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Check the response type against expected response types.
+     *
+     * @param type          the current response type
+     * @param expectedTypes the expected response types
+     * @return whether the response type is supported
+     */
+    public static boolean checkResponseTypes(final String type, final OAuth20ResponseTypes... expectedTypes) {
+        LOGGER.debug("Response type: [{}]", type);
+        final boolean checked = Stream.of(expectedTypes).anyMatch(t -> OAuth20Utils.isResponseType(type, t));
+        if (!checked) {
+            LOGGER.error("Unsupported response type: [{}]", type);
+        }
+        return checked;
     }
 }

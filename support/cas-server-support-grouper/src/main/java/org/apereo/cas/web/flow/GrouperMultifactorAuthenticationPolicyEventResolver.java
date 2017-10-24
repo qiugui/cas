@@ -5,6 +5,7 @@ import edu.internet2.middleware.grouperClientExt.org.apache.commons.lang3.String
 import org.apereo.cas.CentralAuthenticationService;
 import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.AuthenticationException;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.AuthenticationSystemSupport;
 import org.apereo.cas.authentication.principal.Principal;
 import org.apereo.cas.configuration.CasConfigurationProperties;
@@ -15,7 +16,7 @@ import org.apereo.cas.services.MultifactorAuthenticationProviderSelector;
 import org.apereo.cas.services.RegisteredService;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
-import org.apereo.cas.validation.AuthenticationRequestServiceSelectionStrategy;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.flow.authentication.BaseMultifactorAuthenticationProviderEventResolver;
 import org.apereo.cas.web.support.WebUtils;
 import org.apereo.inspektr.audit.annotation.Audit;
@@ -25,8 +26,7 @@ import org.springframework.web.util.CookieGenerator;
 import org.springframework.webflow.execution.Event;
 import org.springframework.webflow.execution.RequestContext;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -49,7 +49,7 @@ public class GrouperMultifactorAuthenticationPolicyEventResolver extends BaseMul
                                                                final CentralAuthenticationService centralAuthenticationService,
                                                                final ServicesManager servicesManager, final TicketRegistrySupport ticketRegistrySupport,
                                                                final CookieGenerator warnCookieGenerator,
-                                                               final List<AuthenticationRequestServiceSelectionStrategy> authenticationSelectionStrategies,
+                                                               final AuthenticationServiceSelectionPlan authenticationSelectionStrategies,
                                                                final MultifactorAuthenticationProviderSelector selector,
                                                                final CasConfigurationProperties casProperties) {
         super(authenticationSystemSupport, centralAuthenticationService, servicesManager, ticketRegistrySupport, warnCookieGenerator,
@@ -66,13 +66,13 @@ public class GrouperMultifactorAuthenticationPolicyEventResolver extends BaseMul
             LOGGER.debug("No group field is defined to process for Grouper multifactor trigger");
             return null;
         }
-        if (authentication == null) {
-            LOGGER.debug("No authentication is available to determine event for principal");
+        if (authentication == null || service == null) {
+            LOGGER.debug("No authentication or service is available to determine event for principal");
             return null;
         }
 
         final Principal principal = authentication.getPrincipal();
-        final List<WsGetGroupsResult> results = GrouperFacade.getGroupsForSubjectId(principal.getId());
+        final Collection<WsGetGroupsResult> results = GrouperFacade.getGroupsForSubjectId(principal.getId());
         if (results.isEmpty()) {
             LOGGER.debug("No groups could be found for [{}] to resolve events for MFA", principal);
             return null;
@@ -96,12 +96,13 @@ public class GrouperMultifactorAuthenticationPolicyEventResolver extends BaseMul
         final Optional<MultifactorAuthenticationProvider> providerFound = resolveProvider(providerMap, values);
 
         if (providerFound.isPresent()) {
-            if (providerFound.get().isAvailable(service)) {
+            final MultifactorAuthenticationProvider provider = providerFound.get();
+            if (provider.isAvailable(service)) {
                 LOGGER.debug("Attempting to build event based on the authentication provider [{}] and service [{}]",
-                        providerFound.get(), service.getName());
-                final Event event = validateEventIdForMatchingTransitionInContext(providerFound.get().getId(), context,
-                        buildEventAttributeMap(authentication.getPrincipal(), service, providerFound.get()));
-                return Collections.singleton(event);
+                        provider, service.getName());
+                final Event event = validateEventIdForMatchingTransitionInContext(provider.getId(), context,
+                        buildEventAttributeMap(authentication.getPrincipal(), service, provider));
+                return CollectionUtils.wrapSet(event);
             }
             LOGGER.warn("Located multifactor provider [{}], yet the provider cannot be reached or verified", providerFound.get());
             return null;

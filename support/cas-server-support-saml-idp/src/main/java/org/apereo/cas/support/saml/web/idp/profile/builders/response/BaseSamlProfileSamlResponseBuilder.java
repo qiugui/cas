@@ -13,9 +13,9 @@ import org.apereo.cas.support.saml.web.idp.profile.builders.enc.SamlObjectEncryp
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.Issuer;
+import org.opensaml.saml.saml2.core.RequestAbstractType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,14 +44,17 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
     /**
      * The Velocity engine factory.
      */
-    protected VelocityEngineFactory velocityEngineFactory;
+    protected final VelocityEngineFactory velocityEngineFactory;
 
+    /**
+     * CAS settings.
+     */
     @Autowired
-    private CasConfigurationProperties casProperties;
+    protected CasConfigurationProperties casProperties;
 
-    private SamlProfileObjectBuilder<Assertion> samlProfileSamlAssertionBuilder;
+    private final SamlProfileObjectBuilder<Assertion> samlProfileSamlAssertionBuilder;
 
-    private SamlObjectEncrypter samlObjectEncrypter;
+    private final SamlObjectEncrypter samlObjectEncrypter;
 
     public BaseSamlProfileSamlResponseBuilder(final OpenSamlConfigBean openSamlConfigBean,
                                               final BaseSamlObjectSigner samlObjectSigner,
@@ -66,15 +69,16 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
     }
 
     @Override
-    public T build(final AuthnRequest authnRequest,
+    public T build(final RequestAbstractType authnRequest,
                    final HttpServletRequest request,
                    final HttpServletResponse response,
-                   final org.jasig.cas.client.validation.Assertion casAssertion,
+                   final Object casAssertion,
                    final SamlRegisteredService service,
-                   final SamlRegisteredServiceServiceProviderMetadataFacade adaptor) throws SamlException {
-        final Assertion assertion = buildSamlAssertion(authnRequest, request, response, casAssertion, service, adaptor);
-        final T finalResponse = buildResponse(assertion, casAssertion, authnRequest, service, adaptor, request, response);
-        return encodeFinalResponse(request, response, service, adaptor, finalResponse);
+                   final SamlRegisteredServiceServiceProviderMetadataFacade adaptor,
+                   final String binding) throws SamlException {
+        final Assertion assertion = buildSamlAssertion(authnRequest, request, response, casAssertion, service, adaptor, binding);
+        final T finalResponse = buildResponse(assertion, casAssertion, authnRequest, service, adaptor, request, response, binding);
+        return encodeFinalResponse(request, response, service, adaptor, finalResponse, binding, authnRequest, casAssertion);
     }
 
     /**
@@ -85,16 +89,22 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
      * @param service       the service
      * @param adaptor       the adaptor
      * @param finalResponse the final response
+     * @param binding       the binding
+     * @param authnRequest  the authn request
+     * @param assertion     the assertion
      * @return the response
      */
     protected T encodeFinalResponse(final HttpServletRequest request,
                                     final HttpServletResponse response,
                                     final SamlRegisteredService service,
                                     final SamlRegisteredServiceServiceProviderMetadataFacade adaptor,
-                                    final T finalResponse) {
+                                    final T finalResponse,
+                                    final String binding,
+                                    final RequestAbstractType authnRequest,
+                                    final Object assertion) {
         final String relayState = request.getParameter(SamlProtocolConstants.PARAMETER_SAML_RELAY_STATE);
         LOGGER.debug("RelayState is [{}]", relayState);
-        return encode(service, finalResponse, response, adaptor, relayState);
+        return encode(service, finalResponse, response, request, adaptor, relayState, binding, authnRequest, assertion);
     }
 
     /**
@@ -106,18 +116,20 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
      * @param casAssertion the cas assertion
      * @param service      the service
      * @param adaptor      the adaptor
+     * @param binding      the binding
      * @return the assertion
      */
-    protected Assertion buildSamlAssertion(final AuthnRequest authnRequest,
+    protected Assertion buildSamlAssertion(final RequestAbstractType authnRequest,
                                            final HttpServletRequest request,
                                            final HttpServletResponse response,
-                                           final org.jasig.cas.client.validation.Assertion casAssertion,
+                                           final Object casAssertion,
                                            final SamlRegisteredService service,
-                                           final SamlRegisteredServiceServiceProviderMetadataFacade adaptor) {
-        return this.samlProfileSamlAssertionBuilder.build(authnRequest, request, response, casAssertion, service, adaptor);
+                                           final SamlRegisteredServiceServiceProviderMetadataFacade adaptor,
+                                           final String binding) {
+        return this.samlProfileSamlAssertionBuilder.build(authnRequest, request, response,
+                casAssertion, service, adaptor, binding);
     }
-
-
+    
     /**
      * Build response response.
      *
@@ -128,16 +140,18 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
      * @param adaptor      the adaptor
      * @param request      the request
      * @param response     the response
+     * @param binding      the binding
      * @return the response
      * @throws SamlException the saml exception
      */
     protected abstract T buildResponse(Assertion assertion,
-                                       org.jasig.cas.client.validation.Assertion casAssertion,
-                                       AuthnRequest authnRequest,
+                                       Object casAssertion,
+                                       RequestAbstractType authnRequest,
                                        SamlRegisteredService service,
                                        SamlRegisteredServiceServiceProviderMetadataFacade adaptor,
                                        HttpServletRequest request,
-                                       HttpServletResponse response) throws SamlException;
+                                       HttpServletResponse response,
+                                       String binding) throws SamlException;
 
     /**
      * Build entity issuer issuer.
@@ -155,17 +169,25 @@ public abstract class BaseSamlProfileSamlResponseBuilder<T extends XMLObject>
      *
      * @param service      the service
      * @param samlResponse the saml response
-     * @param httpResponse the http response
+     * @param httpResponse the http response; may be null to mute encoding.
+     * @param httpRequest  the http request
      * @param adaptor      the adaptor
      * @param relayState   the relay state
+     * @param binding      the binding
+     * @param authnRequest the authn request
+     * @param assertion    the assertion
      * @return the t
      * @throws SamlException the saml exception
      */
     protected abstract T encode(SamlRegisteredService service,
                                 T samlResponse,
                                 HttpServletResponse httpResponse,
+                                HttpServletRequest httpRequest,
                                 SamlRegisteredServiceServiceProviderMetadataFacade adaptor,
-                                String relayState) throws SamlException;
+                                String relayState,
+                                String binding,
+                                RequestAbstractType authnRequest,
+                                Object assertion) throws SamlException;
 
     /**
      * Encrypt assertion.

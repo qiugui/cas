@@ -11,6 +11,7 @@ import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.services.RegisteredService;
 import org.apereo.cas.services.RegisteredServiceAttributeReleasePolicy;
 import org.apereo.cas.services.ServicesManager;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.validation.Assertion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,6 @@ import org.springframework.web.servlet.view.AbstractView;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
@@ -51,7 +51,7 @@ public abstract class AbstractCasView extends AbstractView {
      */
     protected final ServicesManager servicesManager;
 
-    
+
     /**
      * authentication context attribute name.
      */
@@ -252,9 +252,9 @@ public abstract class AbstractCasView extends AbstractView {
             if (value instanceof Collection || value instanceof Map || value instanceof Object[]
                     || value instanceof Iterator || value instanceof Enumeration) {
                 return value;
-            } else {
-                return Collections.singleton(value);
             }
+            return CollectionUtils.wrap(value);
+
         }));
     }
 
@@ -361,7 +361,7 @@ public abstract class AbstractCasView extends AbstractView {
 
             if (doesAttributePolicyAllow) {
                 LOGGER.debug("Obtained [{}] is passed to the CAS validation payload", attributeName);
-                attributes.put(attributeName, Collections.singleton(attributeValue));
+                attributes.put(attributeName, CollectionUtils.wrap(attributeValue));
             } else {
                 LOGGER.debug("Attribute release policy for [{}] does not authorize the release of [{}]",
                         service.getServiceId(), attributeName);

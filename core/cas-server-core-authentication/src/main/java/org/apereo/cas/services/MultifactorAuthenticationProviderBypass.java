@@ -10,6 +10,7 @@ import java.io.Serializable;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
+@FunctionalInterface
 public interface MultifactorAuthenticationProviderBypass extends Serializable {
 
     /**
@@ -30,6 +31,6 @@ public interface MultifactorAuthenticationProviderBypass extends Serializable {
      * @param provider          the provider
      * @return false is request isn't supported and can be bypassed. true otherwise.
      */
-    boolean isAuthenticationRequestHonored(Authentication authentication, RegisteredService registeredService,
-                                           MultifactorAuthenticationProvider provider);
+    boolean shouldMultifactorAuthenticationProviderExecute(Authentication authentication, RegisteredService registeredService,
+                                                           MultifactorAuthenticationProvider provider);
 }

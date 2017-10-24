@@ -2,14 +2,15 @@ package org.apereo.cas.config;
 
 import com.warrenstrange.googleauth.IGoogleAuthenticator;
 import org.apereo.cas.adaptors.gauth.JpaGoogleAuthenticatorTokenCredentialRepository;
-import org.apereo.cas.adaptors.gauth.JpaGoogleAuthenticatorTokenRepository;
+import org.apereo.cas.adaptors.gauth.GoogleAuthenticatorJpaTokenRepository;
 import org.apereo.cas.adaptors.gauth.repository.credentials.GoogleAuthenticatorAccount;
 import org.apereo.cas.adaptors.gauth.repository.token.GoogleAuthenticatorToken;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.jpa.JpaConfigDataHolder;
-import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.support.JpaBeans;
 import org.apereo.cas.otp.repository.credentials.OneTimeTokenCredentialRepository;
 import org.apereo.cas.otp.repository.token.OneTimeTokenRepository;
+import org.apereo.cas.util.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import java.util.List;
 
 /**
  * This is {@link GoogleAuthenticatorJpaConfiguration}.
@@ -40,9 +42,6 @@ import javax.sql.DataSource;
 @EnableScheduling
 public class GoogleAuthenticatorJpaConfiguration {
 
-    @Autowired
-    @Qualifier("googleAuthenticatorInstance")
-    private IGoogleAuthenticator googleAuthenticatorInstance;
 
     @Autowired
     private CasConfigurationProperties casProperties;
@@ -50,26 +49,26 @@ public class GoogleAuthenticatorJpaConfiguration {
     @RefreshScope
     @Bean
     public HibernateJpaVendorAdapter jpaGoogleAuthenticatorVendorAdapter() {
-        return Beans.newHibernateJpaVendorAdapter(casProperties.getJdbc());
+        return JpaBeans.newHibernateJpaVendorAdapter(casProperties.getJdbc());
     }
 
     @RefreshScope
     @Bean
     public DataSource dataSourceGoogleAuthenticator() {
-        return Beans.newHickariDataSource(casProperties.getAuthn().getMfa().getGauth().getJpa().getDatabase());
+        return JpaBeans.newDataSource(casProperties.getAuthn().getMfa().getGauth().getJpa().getDatabase());
     }
 
     @Bean
-    public String[] jpaPackagesToScanGoogleAuthenticator() {
-        return new String[]{GoogleAuthenticatorAccount.class.getPackage().getName(),
-                GoogleAuthenticatorToken.class.getPackage().getName()};
+    public List<String> jpaPackagesToScanGoogleAuthenticator() {
+        return CollectionUtils.wrapList(GoogleAuthenticatorAccount.class.getPackage().getName(),
+                GoogleAuthenticatorToken.class.getPackage().getName());
     }
 
     @Lazy
     @Bean
     public LocalContainerEntityManagerFactoryBean googleAuthenticatorEntityManagerFactory() {
         final LocalContainerEntityManagerFactoryBean bean =
-                Beans.newHibernateEntityManagerFactoryBean(
+                JpaBeans.newHibernateEntityManagerFactoryBean(
                         new JpaConfigDataHolder(
                                 jpaGoogleAuthenticatorVendorAdapter(),
                                 "jpaGoogleAuthenticatorContext",
@@ -77,7 +76,6 @@ public class GoogleAuthenticatorJpaConfiguration {
                                 dataSourceGoogleAuthenticator()),
                         casProperties.getAuthn().getMfa().getGauth().getJpa().getDatabase());
 
-        bean.getJpaPropertyMap().put("hibernate.enable_lazy_load_no_trans", Boolean.TRUE);
         return bean;
     }
 
@@ -90,16 +88,18 @@ public class GoogleAuthenticatorJpaConfiguration {
         return mgmr;
     }
 
+    @Autowired
     @Bean
     @ConditionalOnMissingBean(name = "googleAuthenticatorAccountRegistry")
-    public OneTimeTokenCredentialRepository googleAuthenticatorAccountRegistry() {
+    public OneTimeTokenCredentialRepository googleAuthenticatorAccountRegistry(@Qualifier("googleAuthenticatorInstance") 
+                                                                               final IGoogleAuthenticator googleAuthenticatorInstance) {
         return new JpaGoogleAuthenticatorTokenCredentialRepository(googleAuthenticatorInstance);
     }
 
     @ConditionalOnMissingBean(name = "oneTimeTokenAuthenticatorTokenRepository")
     @Bean
     public OneTimeTokenRepository oneTimeTokenAuthenticatorTokenRepository() {
-        return new JpaGoogleAuthenticatorTokenRepository(
+        return new GoogleAuthenticatorJpaTokenRepository(
                 casProperties.getAuthn().getMfa().getGauth().getTimeStepSize()
         );
     }

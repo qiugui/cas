@@ -14,9 +14,11 @@ import org.apereo.cas.authentication.principal.WebApplicationService;
 import org.apereo.cas.logout.LogoutRequest;
 import org.apereo.cas.services.MultifactorAuthenticationProvider;
 import org.apereo.cas.services.RegisteredService;
+import org.apereo.cas.services.UnauthorizedServiceException;
 import org.apereo.cas.ticket.ServiceTicket;
 import org.apereo.cas.ticket.TicketGrantingTicket;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
+import org.apereo.cas.web.flow.CasWebflowConstants;
 import org.apereo.inspektr.common.spi.PrincipalResolver;
 import org.pac4j.core.context.J2EContext;
 import org.pac4j.core.context.WebContext;
@@ -28,6 +30,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.util.CookieGenerator;
 import org.springframework.webflow.context.ExternalContextHolder;
 import org.springframework.webflow.context.servlet.ServletExternalContext;
@@ -40,7 +43,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,6 +69,11 @@ public final class WebUtils {
      */
     public static final String USER_AGENT_HEADER = "user-agent";
 
+    /**
+     * Ticket-granting ticket id parameter used in various flow scopes.
+     */
+    public static final String PARAMETER_TICKET_GRANTING_TICKET_ID = "ticketGrantingTicketId";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(WebUtils.class);
 
     private static final String PUBLIC_WORKSTATION_ATTRIBUTE = "publicWorkstation";
@@ -72,7 +82,6 @@ public final class WebUtils {
     private static final String PARAMETER_AUTHENTICATION_RESULT = "authenticationResult";
     private static final String PARAMETER_CREDENTIAL = "credential";
     private static final String PARAMETER_UNAUTHORIZED_REDIRECT_URL = "unauthorizedRedirectUrl";
-    private static final String PARAMETER_TICKET_GRANTING_TICKET_ID = "ticketGrantingTicketId";
     private static final String PARAMETER_REGISTERED_SERVICE = "registeredService";
     private static final String PARAMETER_SERVICE = "service";
     private static final String PARAMETER_SERVICE_TICKET_ID = "serviceTicketId";
@@ -91,7 +100,7 @@ public final class WebUtils {
      * @param context the context
      * @return the http servlet request
      */
-    public static HttpServletRequest getHttpServletRequest(final RequestContext context) {
+    public static HttpServletRequest getHttpServletRequestFromExternalWebflowContext(final RequestContext context) {
         Assert.isInstanceOf(ServletExternalContext.class, context.getExternalContext(),
                 "Cannot obtain HttpServletRequest from event of type: "
                         + context.getExternalContext().getClass().getName());
@@ -104,7 +113,7 @@ public final class WebUtils {
      *
      * @return the http servlet request
      */
-    public static HttpServletRequest getHttpServletRequest() {
+    public static HttpServletRequest getHttpServletRequestFromExternalWebflowContext() {
         final ServletExternalContext servletExternalContext = (ServletExternalContext) ExternalContextHolder.getExternalContext();
         if (servletExternalContext != null) {
             return (HttpServletRequest) servletExternalContext.getNativeRequest();
@@ -142,7 +151,7 @@ public final class WebUtils {
      * @param context the context
      * @return the http servlet response
      */
-    public static HttpServletResponse getHttpServletResponse(final RequestContext context) {
+    public static HttpServletResponse getHttpServletResponseFromExternalWebflowContext(final RequestContext context) {
         Assert.isInstanceOf(ServletExternalContext.class, context.getExternalContext(),
                 "Cannot obtain HttpServletResponse from event of type: " + context.getExternalContext().getClass().getName());
         return (HttpServletResponse) context.getExternalContext().getNativeResponse();
@@ -153,13 +162,12 @@ public final class WebUtils {
      *
      * @return the http servlet response
      */
-    public static HttpServletResponse getHttpServletResponse() {
+    public static HttpServletResponse getHttpServletResponseFromExternalWebflowContext() {
         final ServletExternalContext servletExternalContext = (ServletExternalContext) ExternalContextHolder.getExternalContext();
         if (servletExternalContext != null) {
             return (HttpServletResponse) servletExternalContext.getNativeResponse();
-        } else {
-            return null;
         }
+        return null;
     }
 
     /**
@@ -182,7 +190,7 @@ public final class WebUtils {
      * @return the service
      */
     public static WebApplicationService getService(final List<ArgumentExtractor> argumentExtractors, final RequestContext context) {
-        final HttpServletRequest request = WebUtils.getHttpServletRequest(context);
+        final HttpServletRequest request = WebUtils.getHttpServletRequestFromExternalWebflowContext(context);
         return getService(argumentExtractors, request);
     }
 
@@ -338,7 +346,7 @@ public final class WebUtils {
      */
     public static boolean getWarningCookie(final RequestContext context) {
         final String val = ObjectUtils.defaultIfNull(context.getFlowScope().get("warnCookieValue"), Boolean.FALSE.toString()).toString();
-        return Boolean.valueOf(val);
+        return Boolean.parseBoolean(val);
     }
 
     /**
@@ -349,6 +357,28 @@ public final class WebUtils {
      */
     public static void putRegisteredService(final RequestContext context, final RegisteredService registeredService) {
         context.getFlowScope().put(PARAMETER_REGISTERED_SERVICE, registeredService);
+    }
+
+    /**
+     * Gets credential.
+     *
+     * @param <T>     the type parameter
+     * @param context the context
+     * @param clazz   the clazz
+     * @return the credential
+     */
+    public static <T extends Credential> T getCredential(final RequestContext context, final Class<T> clazz) {
+        Assert.notNull(clazz, "clazz cannot be null");
+        final Credential credential = getCredential(context);
+        if (credential == null) {
+            return null;
+        }
+        if (!clazz.isAssignableFrom(credential.getClass())) {
+            throw new ClassCastException("credential [" + credential.getId()
+                    + " is of type " + credential.getClass()
+                    + " when we were expecting " + clazz);
+        }
+        return (T) credential;
     }
 
     /**
@@ -394,7 +424,7 @@ public final class WebUtils {
      *
      * @return the authenticated username.
      */
-    public static String getAuthenticatedUsername() {
+    public static String getPac4jAuthenticatedUsername() {
         final HttpServletRequest request = getHttpServletRequestFromRequestAttributes();
         final HttpServletResponse response = getHttpServletResponseFromRequestAttributes();
         if (request != null && response != null) {
@@ -444,6 +474,15 @@ public final class WebUtils {
     }
 
     /**
+     * Gets pac4j context.
+     *
+     * @return the pac4j context
+     */
+    public static J2EContext getPac4jJ2EContext() {
+        return getPac4jJ2EContext(getHttpServletRequestFromRequestAttributes(), getHttpServletResponseFromRequestAttributes());
+    }
+
+    /**
      * Is authenticating at a public workstation?
      *
      * @param ctx the ctx
@@ -478,7 +517,7 @@ public final class WebUtils {
     public static void putWarnCookieIfRequestParameterPresent(final CookieGenerator warnCookieGenerator, final RequestContext context) {
         if (warnCookieGenerator != null) {
             LOGGER.debug("Evaluating request to determine if warning cookie should be generated");
-            final HttpServletResponse response = WebUtils.getHttpServletResponse(context);
+            final HttpServletResponse response = WebUtils.getHttpServletResponseFromExternalWebflowContext(context);
             if (StringUtils.isNotBlank(context.getExternalContext().getRequestParameterMap().get("warn"))) {
                 warnCookieGenerator.addCookie(response, "true");
             }
@@ -576,16 +615,35 @@ public final class WebUtils {
         }
         return null;
     }
-
+    
     /**
      * Gets http servlet request user agent.
      *
      * @return the http servlet request user agent
      */
     public static String getHttpServletRequestUserAgent() {
-        return getHttpServletRequestUserAgent(getHttpServletRequest());
+        return getHttpServletRequestUserAgent(getHttpServletRequestFromExternalWebflowContext());
     }
 
+    /**
+     * Gets request headers.
+     *
+     * @param request the request
+     * @return the request headers
+     */
+    public static Map<String, String> getRequestHeaders(final HttpServletRequest request) {
+        final Map<String, String> headers = new LinkedHashMap<>();
+        final Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames != null) {
+            while (headerNames.hasMoreElements()) {
+                final String headerName = headerNames.nextElement();
+                final String headerValue = StringUtils.stripToEmpty(request.getHeader(headerName));
+                headers.put(headerName, headerValue);
+            }
+        }
+        return headers;
+    }
+    
     /**
      * Gets http servlet request geo location.
      *
@@ -617,7 +675,11 @@ public final class WebUtils {
      * @return the http servlet request geo location
      */
     public static GeoLocationRequest getHttpServletRequestGeoLocation() {
-        return getHttpServletRequestGeoLocation(WebUtils.getHttpServletRequest());
+        final HttpServletRequest servletRequest = WebUtils.getHttpServletRequestFromExternalWebflowContext();
+        if (servletRequest != null) {
+            return getHttpServletRequestGeoLocation(servletRequest);
+        }
+        return null;
     }
 
     /**
@@ -711,6 +773,26 @@ public final class WebUtils {
     }
 
     /**
+     * Put attribute consent enabled.
+     *
+     * @param context the context
+     * @param enabled the enabled
+     */
+    public static void putAttributeConsentEnabled(final RequestContext context, final Boolean enabled) {
+        context.getFlowScope().put("attributeConsentEnabled", enabled);
+    }
+
+    /**
+     * Is remember me authentication enabled ?.
+     *
+     * @param context the context
+     * @return the boolean
+     */
+    public static boolean isRememberMeAuthenticationEnabled(final RequestContext context) {
+        return context.getFlowScope().getBoolean("rememberMeAuthenticationEnabled", false);
+    }
+
+    /**
      * Gets all multifactor authentication providers from application context.
      *
      * @param applicationContext the application context
@@ -723,7 +805,7 @@ public final class WebUtils {
         } catch (final Exception e) {
             LOGGER.warn("Could not locate beans of type [{}]", MultifactorAuthenticationProvider.class);
         }
-        return Collections.emptyMap();
+        return new HashMap<>(0);
     }
 
     /**
@@ -793,5 +875,26 @@ public final class WebUtils {
      */
     public static void putServiceOriginalUrlIntoRequestScope(final RequestContext requestContext, final WebApplicationService service) {
         requestContext.getRequestScope().put("originalUrl", service.getOriginalUrl());
+    }
+
+    /**
+     * Produce unauthorized error view model and view.
+     *
+     * @return the model and view
+     */
+    public static ModelAndView produceUnauthorizedErrorView() {
+        return produceErrorView(new UnauthorizedServiceException(UnauthorizedServiceException.CODE_UNAUTHZ_SERVICE, StringUtils.EMPTY));
+    }
+
+    /**
+     * Produce error view model and view.
+     *
+     * @param e the e
+     * @return the model and view
+     */
+    public static ModelAndView produceErrorView(final Exception e) {
+        final Map model = new HashMap<>();
+        model.put("rootCauseException", e);
+        return new ModelAndView(CasWebflowConstants.VIEW_ID_SERVICE_ERROR, model);
     }
 }

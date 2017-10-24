@@ -78,7 +78,7 @@ public interface CentralAuthenticationService {
      * @since 5.0.0
      */
     <T extends Ticket> T getTicket(String ticketId) throws InvalidTicketException;
-    
+
     /**
      * Obtains the given ticket by its id and type
      * and returns the CAS-representative object. Implementations
@@ -88,7 +88,7 @@ public interface CentralAuthenticationService {
      *
      * @param <T>      the generic ticket type to return that extends {@link Ticket}
      * @param ticketId the ticket granting ticket id
-     * @param clazz    the ticket type that is reques to be found
+     * @param clazz    the ticket type that is requested to be found
      * @return the ticket object
      * @throws InvalidTicketException the invalid ticket exception
      * @since 4.1.0
@@ -97,12 +97,24 @@ public interface CentralAuthenticationService {
             throws InvalidTicketException;
 
     /**
+     * Attempts to delete a ticket from the underlying store
+     * and is allowed to run any number of processing on the ticket
+     * and removal op before invoking it. The ticket id can be associated
+     * with any ticket type that is valid and understood by CAS and the underlying
+     * ticket store; however some special cases require that you invoke the appropriate
+     * operation when destroying tickets, such {@link #destroyTicketGrantingTicket(String)}.
+     *
+     * @param ticketId the ticket id
+     */
+    default void deleteTicket(String ticketId) {}
+
+    /**
      * Retrieve a collection of tickets from the underlying ticket registry.
      * The retrieval operation must pass the predicate check that is solely
      * used to filter the collection of tickets received. Implementations
      * can use the predicate to request a collection of expired tickets,
      * or tickets whose id matches a certain pattern, etc. The resulting
-     * collection will include ticktes that have been evaluated by the predicate.
+     * collection will include tickets that have been evaluated by the predicate.
      *
      * @param predicate the predicate
      * @return the tickets
@@ -176,11 +188,9 @@ public interface CentralAuthenticationService {
      * Delegate a TicketGrantingTicket to a Service for proxying authentication
      * to other Services.
      *
-     * @param serviceTicketId The service ticket identifier that will delegate to a
-     * {@link TicketGrantingTicket}.
+     * @param serviceTicketId      The service ticket identifier that will delegate to a {@link TicketGrantingTicket}.
      * @param authenticationResult The current authentication context before this ticket can be granted.
-     * @return Non -null ticket-granting ticket identifier that can grant {@link ServiceTicket}
-     * that proxy authentication.
+     * @return Non -null ticket-granting ticket identifier that can grant {@link ServiceTicket} that proxy authentication.
      * @throws AuthenticationException on errors authenticating the credentials
      * @throws AbstractTicketException if there was an error creating the ticket
      */

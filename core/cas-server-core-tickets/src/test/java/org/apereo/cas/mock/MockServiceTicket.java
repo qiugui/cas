@@ -6,6 +6,7 @@ import org.apereo.cas.ticket.ExpirationPolicy;
 import org.apereo.cas.ticket.ServiceTicket;
 import org.apereo.cas.ticket.Ticket;
 import org.apereo.cas.ticket.TicketGrantingTicket;
+import org.apereo.cas.ticket.TicketState;
 import org.apereo.cas.ticket.proxy.ProxyGrantingTicket;
 import org.apereo.cas.ticket.support.NeverExpiresExpirationPolicy;
 
@@ -18,19 +19,19 @@ import java.time.ZonedDateTime;
  * @author Marvin S. Addison
  * @since 3.0.0
  */
-public class MockServiceTicket implements ServiceTicket {
+public class MockServiceTicket implements ServiceTicket, TicketState {
 
     private static final long serialVersionUID = 8203377063087967768L;
 
-    private String id;
+    private final String id;
 
-    private ZonedDateTime created;
+    private final ZonedDateTime created;
 
-    private Service service;
+    private final Service service;
     
     private ExpirationPolicy expiration = new NeverExpiresExpirationPolicy();
     
-    private TicketGrantingTicket parent;
+    private final TicketGrantingTicket parent;
 
     public MockServiceTicket(final String id, final Service service, final TicketGrantingTicket parent) {
         this.service = service;
@@ -68,13 +69,18 @@ public class MockServiceTicket implements ServiceTicket {
     }
 
     @Override
+    public String getPrefix() {
+        return ServiceTicket.PREFIX;
+    }
+
+    @Override
     public String getId() {
         return id;
     }
 
     @Override
     public boolean isExpired() {
-        return false;
+        return this.expiration.isExpired(this);
     }
 
     @Override
@@ -88,8 +94,27 @@ public class MockServiceTicket implements ServiceTicket {
     }
 
     @Override
+    public Authentication getAuthentication() {
+        return this.parent.getAuthentication();
+    }
+
+    @Override
+    public void update() {
+    }
+
+    @Override
     public int getCountOfUses() {
         return 0;
+    }
+
+    @Override
+    public ZonedDateTime getLastTimeUsed() {
+        return ZonedDateTime.now();
+    }
+
+    @Override
+    public ZonedDateTime getPreviousTimeUsed() {
+        return ZonedDateTime.now();
     }
 
 

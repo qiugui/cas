@@ -1,7 +1,8 @@
 package org.apereo.cas.util.serialization;
 
-import com.google.common.base.Throwables;
 import org.apereo.cas.CipherExecutor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +22,7 @@ import java.io.Serializable;
  * @since 5.0.0
  */
 public final class SerializationUtils {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SerializationUtils.class);
 
     private SerializationUtils() {
     }
@@ -49,7 +51,7 @@ public final class SerializationUtils {
         try (ObjectOutputStream out = new ObjectOutputStream(outputStream)) {
             out.writeObject(object);
         } catch (final IOException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -81,13 +83,13 @@ public final class SerializationUtils {
             final T obj = (T) in.readObject();
             return obj;
         } catch (final ClassNotFoundException | IOException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         } finally {
             if (in != null) {
                 try {
                     in.close();
                 } catch (final IOException e) {
-                    throw Throwables.propagate(e);
+                    LOGGER.error("Unable to serialize", e);
                 }
             }
         }
@@ -124,7 +126,7 @@ public final class SerializationUtils {
             final byte[] decoded = (byte[]) cipher.decode(object);
             return deserializeAndCheckObject(decoded, type);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 

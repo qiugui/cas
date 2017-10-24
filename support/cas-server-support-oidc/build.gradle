@@ -1,11 +1,32 @@
 description = "Apereo CAS Server OpenID Connect Support"
 dependencies {
-    compileOnly libraries.springcloud
-    compile project(":support:cas-server-support-oauth-webflow")
-    compile project(":support:cas-server-support-oidc-core")
-    compile libraries.jose4j
+    api project(":api:cas-server-core-api")
+    api project(":api:cas-server-core-api-webflow")
+    api project(":api:cas-server-core-api-ticket")
+    api project(":api:cas-server-core-api-protocol")
+    
+    implementation project(":core:cas-server-core-web")
+    implementation project(":core:cas-server-core-util")
+    implementation project(":core:cas-server-core-authentication-attributes")
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":core:cas-server-core-services-api")
+    implementation project(":core:cas-server-core-util")
+    implementation project(":core:cas-server-core-configuration")
+    implementation project(":support:cas-server-support-oauth-webflow")
+    implementation project(":support:cas-server-support-oidc-core")
+    implementation project(":support:cas-server-support-oauth-core")
+    implementation project(":support:cas-server-support-oidc-services")
+    implementation project(":support:cas-server-support-oauth-api")
+    implementation project(":support:cas-server-support-oauth")
+    implementation project(":support:cas-server-support-oauth-services")
+    
+    implementation libraries.jose4j
+    implementation libraries.caffein
+    
     compileOnly project(":support:cas-server-support-cookie")
     compileOnly project(":core:cas-server-core-webflow")
-    testCompile project(":core:cas-server-core-util")
+    
+    testImplementation project(":core:cas-server-core-util")
+    testImplementation project(":core:cas-server-core-services-authentication")
     
 }

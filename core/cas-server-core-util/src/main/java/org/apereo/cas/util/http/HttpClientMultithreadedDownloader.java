@@ -53,7 +53,7 @@ public class HttpClientMultithreadedDownloader {
             LOGGER.info("Starting to download resource [{}] into [{}]", this.resourceToDownload, targetDestination);
             w.download(stop, status);
         } catch (final Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -81,7 +81,7 @@ public class HttpClientMultithreadedDownloader {
                     break;
 
                 case RETRYING:
-                    LOGGER.debug(info.getState() + " retry: [{}], delay: [{}]", info.getRetry(), info.getDelay());
+                    LOGGER.debug("[{}] retry: [{}], delay: [{}]", info.getState(), info.getRetry(), info.getDelay());
                     break;
 
                 case DOWNLOADING:

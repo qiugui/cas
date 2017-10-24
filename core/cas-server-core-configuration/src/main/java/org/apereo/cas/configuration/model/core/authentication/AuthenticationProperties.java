@@ -1,6 +1,10 @@
 package org.apereo.cas.configuration.model.core.authentication;
 
+import org.apereo.cas.configuration.model.support.cassandra.authentication.CassandraAuthenticationProperties;
+import org.apereo.cas.configuration.model.support.clouddirectory.CloudDirectoryProperties;
+import org.apereo.cas.configuration.model.support.couchbase.authentication.CouchbaseAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.digest.DigestProperties;
+import org.apereo.cas.configuration.model.support.fortress.FortressAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.generic.AcceptAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.generic.FileAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.generic.RejectAuthenticationProperties;
@@ -21,15 +25,19 @@ import org.apereo.cas.configuration.model.support.pm.PasswordManagementPropertie
 import org.apereo.cas.configuration.model.support.radius.RadiusProperties;
 import org.apereo.cas.configuration.model.support.rest.RestAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.saml.idp.SamlIdPProperties;
+import org.apereo.cas.configuration.model.support.saml.shibboleth.ShibbolethIdPProperties;
 import org.apereo.cas.configuration.model.support.spnego.SpnegoProperties;
-import org.apereo.cas.configuration.model.support.stormpath.StormpathProperties;
+import org.apereo.cas.configuration.model.support.surrogate.SurrogateAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.throttle.ThrottleProperties;
 import org.apereo.cas.configuration.model.support.token.TokenAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.trusted.TrustedAuthenticationProperties;
+import org.apereo.cas.configuration.model.support.wsfed.WsFederationDelegationProperties;
 import org.apereo.cas.configuration.model.support.wsfed.WsFederationProperties;
 import org.apereo.cas.configuration.model.support.x509.X509Properties;
+import org.apereo.cas.configuration.support.RequiresModule;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,8 +47,23 @@ import java.util.List;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
-public class AuthenticationProperties {
+@RequiresModule(name = "cas-server-core-authentication", automated = true)
+public class AuthenticationProperties implements Serializable {
 
+    private static final long serialVersionUID = -1233126985007049516L;
+    
+    @NestedConfigurationProperty
+    private CouchbaseAuthenticationProperties couchbase = new CouchbaseAuthenticationProperties();
+
+    @NestedConfigurationProperty
+    private CassandraAuthenticationProperties cassandra = new CassandraAuthenticationProperties();
+    
+    @NestedConfigurationProperty
+    private CloudDirectoryProperties cloudDirectory = new CloudDirectoryProperties();
+    
+    @NestedConfigurationProperty
+    private SurrogateAuthenticationProperties surrogate = new SurrogateAuthenticationProperties();
+    
     @NestedConfigurationProperty
     private GraphicalUserAuthenticationProperties gua = new GraphicalUserAuthenticationProperties();
     
@@ -59,7 +82,10 @@ public class AuthenticationProperties {
     @NestedConfigurationProperty
     private RestAuthenticationProperties rest = new RestAuthenticationProperties();
 
-    @NestedConfigurationProperty
+    /**
+     * Collection of settings related to LDAP authentication.
+     * These settings are required to be indexed (i.e. ldap[0].xyz).
+     */
     private List<LdapAuthenticationProperties> ldap = new ArrayList<>();
 
     @NestedConfigurationProperty
@@ -87,13 +113,19 @@ public class AuthenticationProperties {
     private RemoteAddressAuthenticationProperties remoteAddress = new RemoteAddressAuthenticationProperties();
 
     @NestedConfigurationProperty
+    private ShibbolethIdPProperties shibIdp = new ShibbolethIdPProperties();
+    
+    @NestedConfigurationProperty
     private ShiroAuthenticationProperties shiro = new ShiroAuthenticationProperties();
 
     @NestedConfigurationProperty
     private TrustedAuthenticationProperties trusted = new TrustedAuthenticationProperties();
 
-    @NestedConfigurationProperty
-    private JaasAuthenticationProperties jaas = new JaasAuthenticationProperties();
+    /**
+     * Collection of settings related to JAAS authentication.
+     * These settings are required to be indexed (i.e. jaas[0].xyz).
+     */
+    private List<JaasAuthenticationProperties> jaas = new ArrayList<>();
 
     @NestedConfigurationProperty
     private JdbcAuthenticationProperties jdbc = new JdbcAuthenticationProperties();
@@ -125,19 +157,45 @@ public class AuthenticationProperties {
     @NestedConfigurationProperty
     private SpnegoProperties spnego = new SpnegoProperties();
 
-    @NestedConfigurationProperty
-    private StormpathProperties stormpath = new StormpathProperties();
+    /**
+     * Collection of settings related to WsFed delegated authentication.
+     * These settings are required to be indexed (i.e. wsfed[0].xyz).
+     */
+    private List<WsFederationDelegationProperties> wsfed = new ArrayList<>();
 
     @NestedConfigurationProperty
-    private WsFederationProperties wsfed = new WsFederationProperties();
-
+    private WsFederationProperties wsfedIdp = new WsFederationProperties();
+    
     @NestedConfigurationProperty
     private X509Properties x509 = new X509Properties();
 
     @NestedConfigurationProperty
     private TokenAuthenticationProperties token = new TokenAuthenticationProperties();
 
+    @NestedConfigurationProperty
+    private FortressAuthenticationProperties fortress = new FortressAuthenticationProperties();
+
+    /**
+     * Whether CAS authentication/protocol attributes
+     * should be released as part of ticket validation.
+     */
     private boolean releaseProtocolAttributes = true;
+
+    public ShibbolethIdPProperties getShibIdp() {
+        return shibIdp;
+    }
+
+    public void setShibIdp(final ShibbolethIdPProperties shibIdp) {
+        this.shibIdp = shibIdp;
+    }
+
+    public SurrogateAuthenticationProperties getSurrogate() {
+        return surrogate;
+    }
+
+    public void setSurrogate(final SurrogateAuthenticationProperties surrogate) {
+        this.surrogate = surrogate;
+    }
 
     public boolean isReleaseProtocolAttributes() {
         return releaseProtocolAttributes;
@@ -145,6 +203,14 @@ public class AuthenticationProperties {
 
     public void setReleaseProtocolAttributes(final boolean releaseProtocolAttributes) {
         this.releaseProtocolAttributes = releaseProtocolAttributes;
+    }
+
+    public WsFederationProperties getWsfedIdp() {
+        return wsfedIdp;
+    }
+
+    public void setWsfedIdp(final WsFederationProperties wsfedIdp) {
+        this.wsfedIdp = wsfedIdp;
     }
 
     public TokenAuthenticationProperties getToken() {
@@ -207,11 +273,11 @@ public class AuthenticationProperties {
         this.shiro = shiro;
     }
 
-    public JaasAuthenticationProperties getJaas() {
+    public List<JaasAuthenticationProperties> getJaas() {
         return jaas;
     }
 
-    public void setJaas(final JaasAuthenticationProperties jaas) {
+    public void setJaas(final List<JaasAuthenticationProperties> jaas) {
         this.jaas = jaas;
     }
 
@@ -294,20 +360,12 @@ public class AuthenticationProperties {
     public void setSpnego(final SpnegoProperties spnego) {
         this.spnego = spnego;
     }
-
-    public StormpathProperties getStormpath() {
-        return stormpath;
-    }
-
-    public void setStormpath(final StormpathProperties stormpath) {
-        this.stormpath = stormpath;
-    }
-
-    public WsFederationProperties getWsfed() {
+    
+    public List<WsFederationDelegationProperties> getWsfed() {
         return wsfed;
     }
 
-    public void setWsfed(final WsFederationProperties wsfed) {
+    public void setWsfed(final List<WsFederationDelegationProperties> wsfed) {
         this.wsfed = wsfed;
     }
 
@@ -342,8 +400,7 @@ public class AuthenticationProperties {
     public void setTrusted(final TrustedAuthenticationProperties trusted) {
         this.trusted = trusted;
     }
-
-
+    
     public List<LdapAuthenticationProperties> getLdap() {
         return ldap;
     }
@@ -402,5 +459,37 @@ public class AuthenticationProperties {
 
     public void setGua(final GraphicalUserAuthenticationProperties gua) {
         this.gua = gua;
+    }
+
+    public CloudDirectoryProperties getCloudDirectory() {
+        return cloudDirectory;
+    }
+
+    public void setCloudDirectory(final CloudDirectoryProperties cloudDirectory) {
+        this.cloudDirectory = cloudDirectory;
+    }
+
+    public CassandraAuthenticationProperties getCassandra() {
+        return cassandra;
+    }
+
+    public void setCassandra(final CassandraAuthenticationProperties cassandra) {
+        this.cassandra = cassandra;
+    }
+
+    public CouchbaseAuthenticationProperties getCouchbase() {
+        return couchbase;
+    }
+
+    public void setCouchbase(final CouchbaseAuthenticationProperties couchbase) {
+        this.couchbase = couchbase;
+    }
+
+    public FortressAuthenticationProperties getFortress() {
+        return fortress;
+    }
+
+    public void setFortress(final FortressAuthenticationProperties fortress) {
+        this.fortress = fortress;
     }
 }

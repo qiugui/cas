@@ -2,6 +2,7 @@ package org.apereo.cas.support.openid.authentication.principal;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.CentralAuthenticationService;
+import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.principal.AbstractWebApplicationServiceResponseBuilder;
 import org.apereo.cas.authentication.principal.Response;
 import org.apereo.cas.authentication.principal.WebApplicationService;
@@ -32,11 +33,11 @@ public class OpenIdServiceResponseBuilder extends AbstractWebApplicationServiceR
 
     private static final long serialVersionUID = -4581238964007702423L;
 
-    private ServerManager serverManager;
+    private final ServerManager serverManager;
 
-    private CentralAuthenticationService centralAuthenticationService;
+    private final CentralAuthenticationService centralAuthenticationService;
 
-    private String openIdPrefixUrl;
+    private final String openIdPrefixUrl;
 
     /**
      * Instantiates a new Open id service response builder.
@@ -66,7 +67,7 @@ public class OpenIdServiceResponseBuilder extends AbstractWebApplicationServiceR
      * @return the generated authentication answer
      */
     @Override
-    public Response build(final WebApplicationService webApplicationService, final String ticketId) {
+    public Response build(final WebApplicationService webApplicationService, final String ticketId, final Authentication authentication) {
 
         final OpenIdService service = (OpenIdService) webApplicationService;
         final ParameterList parameterList = new ParameterList(WebUtils.getHttpServletRequestFromRequestAttributes().getParameterMap());

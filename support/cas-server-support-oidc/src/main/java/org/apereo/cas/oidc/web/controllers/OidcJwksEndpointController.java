@@ -1,7 +1,6 @@
 package org.apereo.cas.oidc.web.controllers;
 
 
-import com.stormpath.sdk.lang.Assert;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
@@ -13,9 +12,10 @@ import org.apereo.cas.services.OidcRegisteredService;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.support.oauth.profile.OAuth20ProfileScopeToAttributesFilter;
 import org.apereo.cas.support.oauth.validator.OAuth20Validator;
-import org.apereo.cas.support.oauth.web.BaseOAuthWrapperController;
+import org.apereo.cas.support.oauth.web.endpoints.BaseOAuth20Controller;
 import org.apereo.cas.ticket.accesstoken.AccessTokenFactory;
 import org.apereo.cas.ticket.registry.TicketRegistry;
+import org.apereo.cas.web.support.CookieRetrievingCookieGenerator;
 import org.jooq.lambda.Unchecked;
 import org.jose4j.jwk.JsonWebKey;
 import org.jose4j.jwk.JsonWebKeySet;
@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.ui.Model;
+import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.GetMapping;
 
 import javax.servlet.http.HttpServletRequest;
@@ -40,13 +41,13 @@ import java.nio.charset.StandardCharsets;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
-public class OidcJwksEndpointController extends BaseOAuthWrapperController {
+public class OidcJwksEndpointController extends BaseOAuth20Controller {
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcJwksEndpointController.class);
 
     @Autowired
     private ResourceLoader resourceLoader;
 
-    private Resource jwksFile;
+    private final Resource jwksFile;
 
     public OidcJwksEndpointController(final ServicesManager servicesManager,
                                       final TicketRegistry ticketRegistry,
@@ -55,9 +56,11 @@ public class OidcJwksEndpointController extends BaseOAuthWrapperController {
                                       final PrincipalFactory principalFactory,
                                       final ServiceFactory<WebApplicationService> webApplicationServiceServiceFactory,
                                       final OAuth20ProfileScopeToAttributesFilter scopeToAttributesFilter,
-                                      final CasConfigurationProperties casProperties) {
+                                      final CasConfigurationProperties casProperties,
+                                      final CookieRetrievingCookieGenerator ticketGrantingTicketCookieGenerator) {
         super(servicesManager, ticketRegistry, validator, accessTokenFactory, principalFactory,
-                webApplicationServiceServiceFactory, scopeToAttributesFilter, casProperties);
+                webApplicationServiceServiceFactory, scopeToAttributesFilter, 
+                casProperties, ticketGrantingTicketCookieGenerator);
         this.jwksFile = casProperties.getAuthn().getOidc().getJwksFile();
     }
 
@@ -81,7 +84,7 @@ public class OidcJwksEndpointController extends BaseOAuthWrapperController {
             final String jsonJwks = IOUtils.toString(this.jwksFile.getInputStream(), StandardCharsets.UTF_8);
             final JsonWebKeySet jsonWebKeySet = new JsonWebKeySet(jsonJwks);
 
-            getServicesManager().getAllServices()
+            this.servicesManager.getAllServices()
                     .stream()
                     .filter(s -> s instanceof OidcRegisteredService && StringUtils.isNotBlank(((OidcRegisteredService) s).getJwks()))
                     .forEach(

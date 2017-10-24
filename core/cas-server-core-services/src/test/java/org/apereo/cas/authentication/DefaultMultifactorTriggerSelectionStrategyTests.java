@@ -7,7 +7,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +30,7 @@ public class DefaultMultifactorTriggerSelectionStrategyTests {
     private static final MultifactorAuthenticationProvider MFA_PROVIDER_1 = mock(MultifactorAuthenticationProvider.class);
     private static final MultifactorAuthenticationProvider MFA_PROVIDER_2 = mock(MultifactorAuthenticationProvider.class);
     private static final Set<MultifactorAuthenticationProvider> VALID_PROVIDERS = Stream.of(MFA_PROVIDER_1, MFA_PROVIDER_2).collect(Collectors.toSet());
-    private static final Set<MultifactorAuthenticationProvider> NO_PROVIDERS = Collections.emptySet();
+    private static final Set<MultifactorAuthenticationProvider> NO_PROVIDERS = new HashSet<>(0);
 
     private static final String REQUEST_PARAM = "authn_method";
 
@@ -40,7 +40,6 @@ public class DefaultMultifactorTriggerSelectionStrategyTests {
     private static final String RS_ATTRS_12 = RS_ATTR_1 + ',' + RS_ATTR_2;
     private static final String P_ATTR_1 = "principal_attr_1";
     private static final String P_ATTR_2 = "principal_attr_2";
-    private static final String P_ATTR_3 = "principal_attr_3";
     private static final String P_ATTRS_12 = P_ATTR_1 + ',' + P_ATTR_2;
 
     private static final String VALUE_1 = "enforce_1";

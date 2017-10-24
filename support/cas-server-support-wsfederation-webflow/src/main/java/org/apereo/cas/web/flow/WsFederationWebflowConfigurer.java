@@ -1,5 +1,8 @@
 package org.apereo.cas.web.flow;
 
+import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.web.flow.configurer.AbstractCasWebflowConfigurer;
+import org.springframework.context.ApplicationContext;
 import org.springframework.webflow.definition.registry.FlowDefinitionRegistry;
 import org.springframework.webflow.engine.ActionState;
 import org.springframework.webflow.engine.Flow;
@@ -16,13 +19,12 @@ public class WsFederationWebflowConfigurer extends AbstractCasWebflowConfigurer 
 
     private static final String WS_FEDERATION_ACTION = "wsFederationAction";
     private static final String WS_FEDERATION_REDIRECT = "wsFederationRedirect";
-
-    private boolean autoRedirect = true;
-
-    public WsFederationWebflowConfigurer(final FlowBuilderServices flowBuilderServices, final FlowDefinitionRegistry loginFlowDefinitionRegistry,
-                                         final boolean redirect) {
-        super(flowBuilderServices, loginFlowDefinitionRegistry);
-        this.autoRedirect = redirect;
+    
+    public WsFederationWebflowConfigurer(final FlowBuilderServices flowBuilderServices,
+                                         final FlowDefinitionRegistry loginFlowDefinitionRegistry,
+                                         final ApplicationContext applicationContext,
+                                         final CasConfigurationProperties casProperties) {
+        super(flowBuilderServices, loginFlowDefinitionRegistry, applicationContext, casProperties);
     }
 
     @Override
@@ -35,9 +37,9 @@ public class WsFederationWebflowConfigurer extends AbstractCasWebflowConfigurer 
                     CasWebflowConstants.TRANSITION_ID_SEND_TICKET_GRANTING_TICKET));
             actionState.getTransitionSet().add(createTransition(CasWebflowConstants.TRANSITION_ID_ERROR, WS_FEDERATION_REDIRECT));
 
-            if (this.autoRedirect) {
-                setStartState(flow, actionState);
-            }
+            final String currentStartState = getStartState(flow).getId();
+            actionState.getTransitionSet().add(createTransition(CasWebflowConstants.TRANSITION_ID_PROCEED, currentStartState));
+            setStartState(flow, actionState);
         }
     }
 }

@@ -1,6 +1,8 @@
 package org.apereo.cas.configuration.model.support.oauth;
 
-import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.support.RequiresModule;
+
+import java.io.Serializable;
 
 /**
  * This is {@link OAuthProperties}.
@@ -8,97 +10,87 @@ import org.apereo.cas.configuration.support.Beans;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
-public class OAuthProperties {
+@RequiresModule(name = "cas-server-support-oauth")
+public class OAuthProperties implements Serializable {
+    private static final long serialVersionUID = 2677128037234123907L;
 
-    private Code code = new Code();
-    private AccessToken accessToken = new AccessToken();
-    private RefreshToken refreshToken = new RefreshToken();
+    /**
+     * Profile view types.
+     */
+    public enum UserProfileViewTypes {
+        /**
+         * Return and render the user profile view in nested mode.
+         * This is the default option, most usually.
+         */
+        NESTED,
+        /**
+         * Return and render the user profile view in flattened mode
+         * where all attributes are flattened down to one level only.
+         */
+        FLAT
+    }
+    
+    /**
+     * Settings related to oauth grants.
+     */
+    private OAuthGrantsProperties grants = new OAuthGrantsProperties();
+    /**
+     * Settings related to oauth codes.
+     */
+    private OAuthCodeProperties code = new OAuthCodeProperties();
+    /**
+     * Settings related to oauth access tokens.
+     */
+    private OAuthAccessTokenProperties accessToken = new OAuthAccessTokenProperties();
+    /**
+     * Settings related to oauth refresh tokens.
+     */
+    private OAuthRefreshTokenProperties refreshToken = new OAuthRefreshTokenProperties();
 
-    public AccessToken getAccessToken() {
+    /**
+     * User profile view type determines how the final user profile should be rendered
+     * once an access token is "validated". 
+     */
+    private UserProfileViewTypes userProfileViewType = UserProfileViewTypes.NESTED;
+
+    public UserProfileViewTypes getUserProfileViewType() {
+        return userProfileViewType;
+    }
+
+    public void setUserProfileViewType(final UserProfileViewTypes userProfileViewType) {
+        this.userProfileViewType = userProfileViewType;
+    }
+
+    public OAuthGrantsProperties getGrants() {
+        return grants;
+    }
+
+    public void setGrants(final OAuthGrantsProperties grants) {
+        this.grants = grants;
+    }
+
+    public OAuthAccessTokenProperties getAccessToken() {
         return accessToken;
     }
 
-    public void setAccessToken(final AccessToken accessToken) {
+    public void setAccessToken(final OAuthAccessTokenProperties accessToken) {
         this.accessToken = accessToken;
     }
 
-    public RefreshToken getRefreshToken() {
+    public OAuthRefreshTokenProperties getRefreshToken() {
         return refreshToken;
     }
 
-    public void setRefreshToken(final RefreshToken refreshToken) {
+    public void setRefreshToken(final OAuthRefreshTokenProperties refreshToken) {
         this.refreshToken = refreshToken;
     }
 
-    public Code getCode() {
+    public OAuthCodeProperties getCode() {
         return code;
     }
 
-    public void setCode(final Code code) {
+    public void setCode(final OAuthCodeProperties code) {
         this.code = code;
-    }
-
-    public static class Code {
-        private int numberOfUses = 1;
-        private long timeToKillInSeconds = 30;
-
-        public int getNumberOfUses() {
-            return numberOfUses;
-        }
-
-        public void setNumberOfUses(final int numberOfUses) {
-            this.numberOfUses = numberOfUses;
-        }
-
-        public long getTimeToKillInSeconds() {
-            return timeToKillInSeconds;
-        }
-
-        public void setTimeToKillInSeconds(final long timeToKillInSeconds) {
-            this.timeToKillInSeconds = timeToKillInSeconds;
-        }
-    }
-
-    public static class AccessToken {
-        private String maxTimeToLiveInSeconds = "PT28800S";
-        private String timeToKillInSeconds = "PT7200S";
-        private boolean releaseProtocolAttributes = true;
-
-        public boolean isReleaseProtocolAttributes() {
-            return releaseProtocolAttributes;
-        }
-
-        public void setReleaseProtocolAttributes(final boolean releaseProtocolAttributes) {
-            this.releaseProtocolAttributes = releaseProtocolAttributes;
-        }
-
-        public long getMaxTimeToLiveInSeconds() {
-            return Beans.newDuration(maxTimeToLiveInSeconds).getSeconds();
-        }
-
-        public void setMaxTimeToLiveInSeconds(final String maxTimeToLiveInSeconds) {
-            this.maxTimeToLiveInSeconds = maxTimeToLiveInSeconds;
-        }
-
-        public long getTimeToKillInSeconds() {
-            return Beans.newDuration(timeToKillInSeconds).getSeconds();
-        }
-
-        public void setTimeToKillInSeconds(final String timeToKillInSeconds) {
-            this.timeToKillInSeconds = timeToKillInSeconds;
-        }
-    }
-
-    public static class RefreshToken {
-        private String timeToKillInSeconds = "P14D";
-
-        public long getTimeToKillInSeconds() {
-            return Beans.newDuration(timeToKillInSeconds).getSeconds();
-        }
-
-        public void setTimeToKillInSeconds(final String timeToKillInSeconds) {
-            this.timeToKillInSeconds = timeToKillInSeconds;
-        }
     }
 }
 

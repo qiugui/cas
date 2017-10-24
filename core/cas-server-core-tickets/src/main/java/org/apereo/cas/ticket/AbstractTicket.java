@@ -1,8 +1,10 @@
 package org.apereo.cas.ticket;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.springframework.util.Assert;
 
@@ -16,7 +18,7 @@ import java.time.ZonedDateTime;
 /**
  * Abstract implementation of a ticket that handles all ticket state for
  * policies. Also incorporates properties common among all tickets. As this is
- * an abstract class, it cannnot be instanciated. It is recommended that
+ * an abstract class, it cannot be created. It is recommended that
  * implementations of the Ticket interface extend the AbstractTicket as it
  * handles common functionality amongst different ticket types (such as state
  * updating).
@@ -89,8 +91,7 @@ public abstract class AbstractTicket implements Ticket, TicketState {
      * @param expirationPolicy the expiration policy for the ticket.
      * @throws IllegalArgumentException if the id or expiration policy is null.
      */
-    public AbstractTicket(final String id,
-                          final ExpirationPolicy expirationPolicy) {
+    public AbstractTicket(final String id, final ExpirationPolicy expirationPolicy) {
         Assert.notNull(expirationPolicy, "expirationPolicy cannot be null");
         Assert.notNull(id, "id cannot be null");
 
@@ -145,6 +146,7 @@ public abstract class AbstractTicket implements Ticket, TicketState {
                 || isExpiredInternal();
     }
 
+    @JsonIgnore
     protected boolean isExpiredInternal() {
         return false;
     }
@@ -152,6 +154,25 @@ public abstract class AbstractTicket implements Ticket, TicketState {
     @Override
     public int hashCode() {
         return new HashCodeBuilder(13, 133).append(this.getId()).toHashCode();
+    }
+
+    @Override
+    public boolean equals(final Object object) {
+        if (object == null) {
+            return false;
+        }
+        if (object == this) {
+            return true;
+        }
+        if (!(object instanceof Ticket)) {
+            return false;
+        }
+        
+        final Ticket ticket = (Ticket) object;
+
+        return new EqualsBuilder()
+                .append(ticket.getId(), this.getId())
+                .isEquals();
     }
 
     @Override

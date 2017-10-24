@@ -1,10 +1,9 @@
 package org.apereo.cas.web;
 
 import org.apereo.cas.AbstractCentralAuthenticationServiceTests;
+import org.apereo.cas.CasProtocolConstants;
 import org.apereo.cas.authentication.AuthenticationResult;
 import org.apereo.cas.authentication.CoreAuthenticationTestUtils;
-import org.apereo.cas.authentication.Credential;
-import org.apereo.cas.authentication.DefaultMultifactorTriggerSelectionStrategy;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.mock.MockValidationSpecification;
 import org.apereo.cas.ticket.ServiceTicket;
@@ -14,8 +13,8 @@ import org.apereo.cas.ticket.proxy.support.Cas10ProxyHandler;
 import org.apereo.cas.ticket.proxy.support.Cas20ProxyHandler;
 import org.apereo.cas.util.DefaultUniqueTicketIdGenerator;
 import org.apereo.cas.util.http.SimpleHttpClientFactoryBean;
-import org.apereo.cas.validation.Cas20ProtocolValidationSpecification;
 import org.apereo.cas.validation.Cas20WithoutProxyingValidationSpecification;
+import org.apereo.cas.validation.CasProtocolValidationSpecification;
 import org.apereo.cas.validation.ValidationResponseType;
 import org.apereo.cas.web.config.CasProtocolViewsConfiguration;
 import org.apereo.cas.web.config.CasValidationConfiguration;
@@ -38,8 +37,10 @@ import static org.junit.Assert.*;
  */
 @Import({CasProtocolViewsConfiguration.class, CasValidationConfiguration.class, ThymeleafAutoConfiguration.class})
 public abstract class AbstractServiceValidateControllerTests extends AbstractCentralAuthenticationServiceTests {
-    private static final Service SERVICE = CoreAuthenticationTestUtils.getService();
-    private static final String SUCCESS = "Success";
+    protected static final String SUCCESS = "Success";
+    protected static final Service SERVICE = CoreAuthenticationTestUtils.getService();
+
+    private static final String GITHUB_URL = "https://www.github.com";
 
     protected AbstractServiceValidateController serviceValidateController;
 
@@ -47,19 +48,11 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
     public void onSetUp() throws Exception {
         final StaticApplicationContext context = new StaticApplicationContext();
         context.refresh();
-        this.serviceValidateController = new ServiceValidateController();
-        this.serviceValidateController.setCentralAuthenticationService(getCentralAuthenticationService());
-        this.serviceValidateController.setAuthenticationSystemSupport(getAuthenticationSystemSupport());
-        final Cas20ProxyHandler proxyHandler = new Cas20ProxyHandler(new SimpleHttpClientFactoryBean().getObject(), new DefaultUniqueTicketIdGenerator());
-        this.serviceValidateController.setProxyHandler(proxyHandler);
+        this.serviceValidateController = getServiceValidateControllerInstance();
         this.serviceValidateController.setApplicationContext(context);
-        this.serviceValidateController.setArgumentExtractor(getArgumentExtractor());
-        this.serviceValidateController.setServicesManager(getServicesManager());
-        this.serviceValidateController.setValidationSpecification(new Cas20WithoutProxyingValidationSpecification());
-        this.serviceValidateController.setMultifactorTriggerSelectionStrategy(new DefaultMultifactorTriggerSelectionStrategy("", ""));
     }
 
-    private HttpServletRequest getHttpServletRequest() throws Exception {
+    protected HttpServletRequest getHttpServletRequest() throws Exception {
         final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
 
         final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
@@ -67,23 +60,35 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId2 = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, null);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId2.getId());
-        request.addParameter("renew", "true");
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId2.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_RENEW, "true");
 
         return request;
-    }
-
-    @Test
-    public void verifyAfterPropertesSetTestEverything() throws Exception {
-        this.serviceValidateController.setValidationSpecification(new Cas20ProtocolValidationSpecification());
-        this.serviceValidateController.setProxyHandler(new Cas20ProxyHandler(null, null));
     }
 
     @Test
     public void verifyEmptyParams() throws Exception {
         assertNotNull(this.serviceValidateController.handleRequestInternal(
                 new MockHttpServletRequest(), new MockHttpServletResponse()).getModel().get("code"));
+    }
+
+    @Test
+    public void verifyValidServiceTicketWithValidPgtAndProxyHandlerFailing() throws Exception {
+        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
+
+        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
+        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
+
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, SERVICE.getId());
+
+        this.serviceValidateController.setProxyHandler((credential, proxyGrantingTicketId) -> null);
+        final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
+        assertFalse(modelAndView.getView().toString().contains(SUCCESS));
+        assertNull(modelAndView.getModel().get(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_IOU));
     }
 
     @Test
@@ -94,8 +99,8 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
 
         final ModelAndView mv = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
         assertTrue(mv.getView().toString().contains(SUCCESS));
@@ -107,16 +112,9 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
                 new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
     }
 
-    @Test
-    public void verifyValidServiceTicketRuntimeExceptionWithSpec() throws Exception {
-        this.serviceValidateController.setValidationSpecification(new MockValidationSpecification(false));
-        assertFalse(this.serviceValidateController.handleRequestInternal(getHttpServletRequest(),
-                new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
-    }
 
     @Test
     public void verifyRenewSpecFailsCorrectly() throws Exception {
-        this.serviceValidateController.setValidationSpecification(new Cas20WithoutProxyingValidationSpecification(true));
         assertFalse(this.serviceValidateController.handleRequestInternal(getHttpServletRequest(),
                 new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
     }
@@ -132,54 +130,13 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         getCentralAuthenticationService().destroyTicketGrantingTicket(tId.getId());
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
 
         assertFalse(this.serviceValidateController.handleRequestInternal(request,
                 new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
     }
 
-    @Test
-    public void verifyValidServiceTicketWithValidPgtNoProxyHandling() throws Exception {
-        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
-
-        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
-        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
-        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
-
-        final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "https://www.github.com");
-
-        assertTrue(this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse())
-                .getView().toString().contains(SUCCESS));
-    }
-
-    @Test
-    public void verifyValidServiceTicketWithSecurePgtUrl() throws Exception {
-        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
-        final ModelAndView modelAndView = getModelAndViewUponServiceValidationWithSecurePgtUrl();
-        assertTrue(modelAndView.getView().toString().contains(SUCCESS));
-    }
-
-    @Test
-    public void verifyValidServiceTicketWithInvalidPgt() throws Exception {
-        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
-
-        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
-        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
-        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
-
-        final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "duh");
-
-        final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
-        assertTrue(modelAndView.getView().toString().contains(SUCCESS));
-        assertNull(modelAndView.getModel().get("pgtIou"));
-    }
 
     @Test
     public void verifyValidServiceTicketWithValidPgtAndProxyHandling() throws Exception {
@@ -189,80 +146,13 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "https://www.github.com");
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, SERVICE.getId());
 
         final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
         assertTrue(modelAndView.getView().toString().contains(SUCCESS));
-        assertNotNull(modelAndView.getModel().get("pgtIou"));
-    }
-
-    @Test
-    public void verifyValidServiceTicketWithValidPgtAndProxyHandlerFailing() throws Exception {
-        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
-
-        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
-        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
-
-        final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "https://www.github.com");
-
-        this.serviceValidateController.setProxyHandler(new ProxyHandler() {
-            @Override
-            public String handle(final Credential credential, final TicketGrantingTicket proxyGrantingTicketId) {
-                return null;
-            }
-
-            @Override
-            public boolean canHandle(final Credential credential) {
-                return true;
-            }
-        });
-
-        final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
-        assertFalse(modelAndView.getView().toString().contains(SUCCESS));
-        assertNull(modelAndView.getModel().get("pgtIou"));
-    }
-
-    @Test
-    public void verifyValidServiceTicketWithDifferentEncodingAndIgnoringCase() throws Exception {
-        final String origSvc = "http://www.jasig.org?param=hello+world";
-        final Service svc = CoreAuthenticationTestUtils.getService(origSvc);
-        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), svc);
-
-        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
-        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
-
-        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
-
-        final String reqSvc = "http://WWW.JASIG.ORG?PARAM=hello%20world";
-
-        final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", CoreAuthenticationTestUtils.getService(reqSvc).getId());
-        request.addParameter("ticket", sId.getId());
-
-        assertTrue(this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
-    }
-
-    @Test
-    public void verifyValidServiceTicketWithDifferentEncoding() throws Exception {
-        final Service svc = CoreAuthenticationTestUtils.getService("http://www.jasig.org?param=hello+world");
-        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), svc);
-
-        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
-        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
-
-        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
-
-        final String reqSvc = "http://www.jasig.org?param=hello%20world";
-        final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", CoreAuthenticationTestUtils.getService(reqSvc).getId());
-        request.addParameter("ticket", sId.getId());
-
-        assertTrue(this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
+        assertNotNull(modelAndView.getModel().get(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_IOU));
     }
 
     @Test
@@ -275,13 +165,13 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", svc.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "http://www.github.com");
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, svc.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, "http://www.github.com");
 
         final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
         assertFalse(modelAndView.getView().toString().contains(SUCCESS));
-        assertNull(modelAndView.getModel().get("pgtIou"));
+        assertNull(modelAndView.getModel().get(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_IOU));
     }
 
     @Test
@@ -293,9 +183,9 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", svc.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("format", ValidationResponseType.JSON.name());
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, svc.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_FORMAT, ValidationResponseType.JSON.name());
 
         final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
         assertTrue(modelAndView.getView().toString().contains("Json"));
@@ -311,24 +201,126 @@ public abstract class AbstractServiceValidateControllerTests extends AbstractCen
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", svc.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("format", "NOTHING");
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, svc.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_FORMAT, "NOTHING");
 
         final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
         assertTrue(modelAndView.getView().toString().contains("Success"));
     }
 
+
+    @Test
+    public void verifyValidServiceTicketRuntimeExceptionWithSpec() throws Exception {
+        this.serviceValidateController.addValidationSpecification(new MockValidationSpecification(false));
+        assertFalse(this.serviceValidateController.handleRequestInternal(getHttpServletRequest(),
+                new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
+    }
+    
+    /*
+        CAS10 Proxying Tests.
+     */
+    @Test
+    public void verifyValidServiceTicketWithDifferentEncoding() throws Exception {
+        final Service svc = CoreAuthenticationTestUtils.getService("http://www.jasig.org?param=hello+world");
+        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), svc);
+
+        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
+        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
+
+        final String reqSvc = "http://www.jasig.org?param=hello%20world";
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, CoreAuthenticationTestUtils.getService(reqSvc).getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+
+        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
+        assertTrue(this.serviceValidateController.handleRequestInternal(request,
+                new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
+    }
+
+    @Test
+    public void verifyValidServiceTicketWithSecurePgtUrl() throws Exception {
+        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
+        final ModelAndView modelAndView = getModelAndViewUponServiceValidationWithSecurePgtUrl();
+        assertTrue(modelAndView.getView().toString().contains(SUCCESS));
+    }
+
+    @Test
+    public void verifyValidServiceTicketWithValidPgtNoProxyHandling() throws Exception {
+        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
+
+        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
+        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
+
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, SERVICE.getId());
+
+        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
+        assertTrue(this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse())
+                .getView().toString().contains(SUCCESS));
+    }
+
+    @Test
+    public void verifyValidServiceTicketWithDifferentEncodingAndIgnoringCase() throws Exception {
+        final String origSvc = "http://www.jasig.org?param=hello+world";
+        final Service svc = CoreAuthenticationTestUtils.getService(origSvc);
+        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), svc);
+
+        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
+
+        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), svc, ctx);
+
+        final String reqSvc = "http://WWW.JASIG.ORG?PARAM=hello%20world";
+
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, CoreAuthenticationTestUtils.getService(reqSvc).getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
+        assertTrue(this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse()).getView().toString().contains(SUCCESS));
+    }
+
+    @Test
+    public void verifyValidServiceTicketWithInvalidPgt() throws Exception {
+        final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
+
+        final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
+        final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
+
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, "duh");
+        this.serviceValidateController.setProxyHandler(new Cas10ProxyHandler());
+        final ModelAndView modelAndView = this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
+        assertTrue(modelAndView.getView().toString().contains(SUCCESS));
+        assertNull(modelAndView.getModel().get(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_IOU));
+    }
+
+    /*
+    Helper methods.
+     */
     protected ModelAndView getModelAndViewUponServiceValidationWithSecurePgtUrl() throws Exception {
         final AuthenticationResult ctx = CoreAuthenticationTestUtils.getAuthenticationResult(getAuthenticationSystemSupport(), SERVICE);
         final TicketGrantingTicket tId = getCentralAuthenticationService().createTicketGrantingTicket(ctx);
         final ServiceTicket sId = getCentralAuthenticationService().grantServiceTicket(tId.getId(), SERVICE, ctx);
 
         final MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("service", SERVICE.getId());
-        request.addParameter("ticket", sId.getId());
-        request.addParameter("pgtUrl", "https://www.github.com");
+        request.addParameter(CasProtocolConstants.PARAMETER_SERVICE, SERVICE.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_TICKET, sId.getId());
+        request.addParameter(CasProtocolConstants.PARAMETER_PROXY_GRANTING_TICKET_URL, GITHUB_URL);
 
         return this.serviceValidateController.handleRequestInternal(request, new MockHttpServletResponse());
+    }
+
+    public abstract AbstractServiceValidateController getServiceValidateControllerInstance() throws Exception;
+
+    protected CasProtocolValidationSpecification getValidationSpecification() {
+        return new Cas20WithoutProxyingValidationSpecification();
+    }
+
+    protected ProxyHandler getProxyHandler() throws Exception {
+        return new Cas20ProxyHandler(new SimpleHttpClientFactoryBean().getObject(), new DefaultUniqueTicketIdGenerator());
     }
 }

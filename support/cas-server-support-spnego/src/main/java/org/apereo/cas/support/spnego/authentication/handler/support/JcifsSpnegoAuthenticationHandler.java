@@ -2,16 +2,19 @@ package org.apereo.cas.support.spnego.authentication.handler.support;
 
 import jcifs.spnego.Authentication;
 import org.apereo.cas.authentication.BasicCredentialMetaData;
-import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.DefaultHandlerResult;
 import org.apereo.cas.authentication.HandlerResult;
+import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.handler.support.AbstractPreAndPostProcessingAuthenticationHandler;
 import org.apereo.cas.authentication.principal.Principal;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.support.spnego.authentication.principal.SpnegoCredential;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.concurrent.NotThreadSafe;
 import javax.security.auth.login.FailedLoginException;
 import java.security.GeneralSecurityException;
 import java.util.regex.Pattern;
@@ -26,6 +29,7 @@ import java.util.regex.Pattern;
  * @author Marvin S. Addison
  * @since 3.1
  */
+@NotThreadSafe
 public class JcifsSpnegoAuthenticationHandler extends AbstractPreAndPostProcessingAuthenticationHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(JcifsSpnegoAuthenticationHandler.class);
     
@@ -33,7 +37,11 @@ public class JcifsSpnegoAuthenticationHandler extends AbstractPreAndPostProcessi
     private boolean principalWithDomainName;
     private boolean isNTLMallowed;
 
-    public JcifsSpnegoAuthenticationHandler(final Authentication authentication, final boolean principalWithDomainName, final boolean isNTLMallowed) {
+    private final Object lock = new Object();
+    
+    public JcifsSpnegoAuthenticationHandler(final String name, final ServicesManager servicesManager, final PrincipalFactory principalFactory,
+                                            final Authentication authentication, final boolean principalWithDomainName, final boolean isNTLMallowed) {
+        super(name, servicesManager, principalFactory, null);
         this.authentication = authentication;
         this.principalWithDomainName = principalWithDomainName;
         this.isNTLMallowed = isNTLMallowed;
@@ -49,19 +57,20 @@ public class JcifsSpnegoAuthenticationHandler extends AbstractPreAndPostProcessi
         }
         try {
             // proceed authentication using jcifs
-            synchronized (this) {
+            synchronized (this.lock) {
                 this.authentication.reset();
                 
                 LOGGER.debug("Processing SPNEGO authentication");
                 this.authentication.process(spnegoCredential.getInitToken());
                 
                 principal = this.authentication.getPrincipal();
-                LOGGER.debug("Authenticated SPNEGO principal [{}]", principal.getName());
+                LOGGER.debug("Authenticated SPNEGO principal [{}]", principal != null ? principal.getName() : null);
 
                 LOGGER.debug("Retrieving the next token for authentication");
                 nextToken = this.authentication.getNextToken();
             }
         } catch (final jcifs.spnego.AuthenticationException e) {
+            LOGGER.debug("Processing SPNEGO authentication failed with exception", e);
             throw new FailedLoginException(e.getMessage());
         }
 

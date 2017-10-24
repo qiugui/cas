@@ -10,8 +10,10 @@ import org.springframework.beans.factory.config.AbstractFactoryBean;
 import org.springframework.core.io.Resource;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -30,44 +32,45 @@ public class PrivateKeyFactoryBean extends AbstractFactoryBean<PrivateKey> {
     static {
         Security.addProvider(new BouncyCastleProvider());
     }
-
-
+    
     private Resource location;
-
-
     private String algorithm;
 
     @Override
     protected PrivateKey createInstance() throws Exception {
         PrivateKey key = readPemPrivateKey();
         if (key == null) {
-            LOGGER.debug("[{}] is not in PEM format. Trying next...", this.location.getFile());
+            LOGGER.debug("Key [{}] is not in PEM format. Trying next...", this.location);
             key = readDERPrivateKey();
         }
         return key;
     }
 
     private PrivateKey readPemPrivateKey() throws Exception {
-        LOGGER.debug("Attempting to read [{}] as PEM", this.location.getFile());
-        try (BufferedReader br = new BufferedReader(new FileReader(this.location.getFile()))) {
+        LOGGER.debug("Attempting to read as PEM [{}]", this.location);
+        try (Reader in = new InputStreamReader(this.location.getInputStream(), StandardCharsets.UTF_8);
+             BufferedReader br = new BufferedReader(in)) {
             final PEMParser pp = new PEMParser(br);
             final PEMKeyPair pemKeyPair = (PEMKeyPair) pp.readObject();
             final KeyPair kp = new JcaPEMKeyConverter().getKeyPair(pemKeyPair);
             return kp.getPrivate();
         } catch (final Exception e) {
-            LOGGER.debug(e.getMessage(), e);
+            LOGGER.debug("Unable to read key", e);
             return null;
         }
     }
 
     private PrivateKey readDERPrivateKey() throws Exception {
-        LOGGER.debug("Attempting to read [{}] as DER", this.location.getFile());
+        LOGGER.debug("Attempting to read key as DER [{}]", this.location);
         try (InputStream privKey = this.location.getInputStream()) {
             final byte[] bytes = new byte[privKey.available()];
             privKey.read(bytes);
             final PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(bytes);
             final KeyFactory factory = KeyFactory.getInstance(this.algorithm);
             return factory.generatePrivate(privSpec);
+        } catch (final Exception e) {
+            LOGGER.debug("Unable to read key", e);
+            return null;
         }
     }
 

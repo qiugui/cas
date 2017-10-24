@@ -5,7 +5,7 @@ import org.apereo.cas.configuration.model.core.HostProperties;
 import org.apereo.cas.configuration.model.core.audit.AuditProperties;
 import org.apereo.cas.configuration.model.core.authentication.AuthenticationProperties;
 import org.apereo.cas.configuration.model.core.authentication.HttpClientProperties;
-import org.apereo.cas.configuration.model.core.authentication.PersonDirPrincipalResolverProperties;
+import org.apereo.cas.configuration.model.core.authentication.PersonDirectoryPrincipalResolverProperties;
 import org.apereo.cas.configuration.model.core.events.EventsProperties;
 import org.apereo.cas.configuration.model.core.logout.LogoutProperties;
 import org.apereo.cas.configuration.model.core.metrics.MetricsProperties;
@@ -23,12 +23,14 @@ import org.apereo.cas.configuration.model.support.analytics.GoogleAnalyticsPrope
 import org.apereo.cas.configuration.model.support.aup.AcceptableUsagePolicyProperties;
 import org.apereo.cas.configuration.model.support.captcha.GoogleRecaptchaProperties;
 import org.apereo.cas.configuration.model.support.clearpass.ClearpassProperties;
+import org.apereo.cas.configuration.model.support.consent.ConsentProperties;
 import org.apereo.cas.configuration.model.support.cookie.TicketGrantingCookieProperties;
 import org.apereo.cas.configuration.model.support.cookie.WarningCookieProperties;
 import org.apereo.cas.configuration.model.support.geo.googlemaps.GoogleMapsProperties;
 import org.apereo.cas.configuration.model.support.geo.maxmind.MaxmindProperties;
+import org.apereo.cas.configuration.model.support.interrupt.InterruptProperties;
 import org.apereo.cas.configuration.model.support.jpa.DatabaseProperties;
-import org.apereo.cas.configuration.model.support.saml.SamlCore;
+import org.apereo.cas.configuration.model.support.saml.SamlCoreProperties;
 import org.apereo.cas.configuration.model.support.saml.googleapps.GoogleAppsProperties;
 import org.apereo.cas.configuration.model.support.saml.mdui.SamlMetadataUIProperties;
 import org.apereo.cas.configuration.model.support.saml.shibboleth.ShibbolethAttributeResolverProperties;
@@ -44,6 +46,8 @@ import org.apereo.cas.configuration.model.webapp.mgmt.ManagementWebappProperties
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.io.Serializable;
+
 /**
  * This is {@link CasConfigurationProperties}.
  *
@@ -51,11 +55,23 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
  * @since 5.0.0
  */
 @ConfigurationProperties(value = "cas")
-public class CasConfigurationProperties {
+public class CasConfigurationProperties implements Serializable {
+    /**
+     * Prefix used for all CAS-specific settings.
+     */
+    public static final String PREFIX = "cas";
+
+    private static final long serialVersionUID = -8620267783496071683L;
+    
+    @NestedConfigurationProperty
+    private InterruptProperties interrupt = new InterruptProperties();
+    
+    @NestedConfigurationProperty
+    private ConsentProperties consent = new ConsentProperties();
 
     @NestedConfigurationProperty
     private ScimProperties scim = new ScimProperties();
-    
+
     @NestedConfigurationProperty
     private AuthenticationProperties authn = new AuthenticationProperties();
 
@@ -66,7 +82,7 @@ public class CasConfigurationProperties {
     private HttpClientProperties httpClient = new HttpClientProperties();
 
     @NestedConfigurationProperty
-    private PersonDirPrincipalResolverProperties personDirectory = new PersonDirPrincipalResolverProperties();
+    private PersonDirectoryPrincipalResolverProperties personDirectory = new PersonDirectoryPrincipalResolverProperties();
 
     @NestedConfigurationProperty
     private EventsProperties events = new EventsProperties();
@@ -141,7 +157,7 @@ public class CasConfigurationProperties {
     private WarningCookieProperties warningCookie = new WarningCookieProperties();
 
     @NestedConfigurationProperty
-    private SamlServiceProviderProperties samlSP = new SamlServiceProviderProperties();
+    private SamlServiceProviderProperties samlSp = new SamlServiceProviderProperties();
 
     @NestedConfigurationProperty
     private MaxmindProperties maxmind = new MaxmindProperties();
@@ -159,7 +175,7 @@ public class CasConfigurationProperties {
     private SamlMetadataUIProperties samlMetadataUi = new SamlMetadataUIProperties();
 
     @NestedConfigurationProperty
-    private SamlCore samlCore = new SamlCore();
+    private SamlCoreProperties samlCore = new SamlCoreProperties();
 
     @NestedConfigurationProperty
     private ShibbolethAttributeResolverProperties shibAttributeResolver = new ShibbolethAttributeResolverProperties();
@@ -175,6 +191,14 @@ public class CasConfigurationProperties {
 
     @NestedConfigurationProperty
     private WebflowProperties webflow = new WebflowProperties();
+
+    public ConsentProperties getConsent() {
+        return consent;
+    }
+
+    public void setConsent(final ConsentProperties consent) {
+        this.consent = consent;
+    }
 
     public AuditProperties getAudit() {
         return audit;
@@ -192,11 +216,11 @@ public class CasConfigurationProperties {
         this.httpClient = httpClient;
     }
 
-    public PersonDirPrincipalResolverProperties getPersonDirectory() {
+    public PersonDirectoryPrincipalResolverProperties getPersonDirectory() {
         return personDirectory;
     }
 
-    public void setPersonDirectory(final PersonDirPrincipalResolverProperties personDirectory) {
+    public void setPersonDirectory(final PersonDirectoryPrincipalResolverProperties personDirectory) {
         this.personDirectory = personDirectory;
     }
 
@@ -392,11 +416,11 @@ public class CasConfigurationProperties {
         this.samlMetadataUi = samlMetadataUi;
     }
 
-    public SamlCore getSamlCore() {
+    public SamlCoreProperties getSamlCore() {
         return samlCore;
     }
 
-    public void setSamlCore(final SamlCore samlCore) {
+    public void setSamlCore(final SamlCoreProperties samlCore) {
         this.samlCore = samlCore;
     }
 
@@ -464,12 +488,12 @@ public class CasConfigurationProperties {
         this.googleRecaptcha = googleRecaptcha;
     }
 
-    public SamlServiceProviderProperties getSamlSP() {
-        return samlSP;
+    public SamlServiceProviderProperties getSamlSp() {
+        return samlSp;
     }
 
-    public void setSamlSP(final SamlServiceProviderProperties samlSP) {
-        this.samlSP = samlSP;
+    public void setSamlSp(final SamlServiceProviderProperties samlSp) {
+        this.samlSp = samlSp;
     }
 
     public TwillioProperties getTwillio() {
@@ -502,5 +526,13 @@ public class CasConfigurationProperties {
 
     public void setClickatell(final ClickatellProperties clickatell) {
         this.clickatell = clickatell;
+    }
+
+    public InterruptProperties getInterrupt() {
+        return interrupt;
+    }
+
+    public void setInterrupt(final InterruptProperties interrupt) {
+        this.interrupt = interrupt;
     }
 }

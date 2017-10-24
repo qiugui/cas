@@ -1,11 +1,13 @@
 description = "Apereo CAS Core Google Authenticator Support"
 dependencies {
-    compile libraries.googleauth
-    compile libraries.zxingbarcode
-    compile libraries.spring
-    compile libraries.springcloud
-    compile project(":core:cas-server-core-authentication")
-    compile project(":core:cas-server-core-webflow")
-    compile project(":support:cas-server-support-otp-mfa")
+    api libraries.googleauth
+    api libraries.zxingbarcode
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":core:cas-server-core-webflow")
+    implementation project(":core:cas-server-core-web")
+    implementation project(":core:cas-server-core-configuration")
+    implementation project(":core:cas-server-core-util")
+    api project(":api:cas-server-core-api-webflow")
+    implementation project(":support:cas-server-support-otp-mfa")
     compileOnly project(":support:cas-server-support-trusted-mfa")
 }

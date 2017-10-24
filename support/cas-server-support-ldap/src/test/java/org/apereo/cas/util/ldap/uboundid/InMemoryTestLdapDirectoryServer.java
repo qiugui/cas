@@ -1,6 +1,5 @@
 package org.apereo.cas.util.ldap.uboundid;
 
-import com.google.common.base.Throwables;
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.listener.InMemoryListenerConfig;
@@ -33,7 +32,7 @@ import java.util.Properties;
 public class InMemoryTestLdapDirectoryServer implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(InMemoryTestLdapDirectoryServer.class);
 
-    private InMemoryDirectoryServer directoryServer;
+    private final InMemoryDirectoryServer directoryServer;
 
     private Collection<LdapEntry> ldapEntries;
 
@@ -43,7 +42,8 @@ public class InMemoryTestLdapDirectoryServer implements Closeable {
      */
     public InMemoryTestLdapDirectoryServer(final InputStream properties,
                                            final InputStream ldifFile,
-                                           final InputStream schemaFile) {
+                                           final InputStream schemaFile,
+                                           final int port) {
         try {
 
             LOGGER.debug("Loading properties...");
@@ -70,11 +70,11 @@ public class InMemoryTestLdapDirectoryServer implements Closeable {
             config.setListenerConfigs(
                     InMemoryListenerConfig.createLDAPConfig("LDAP", // Listener name
                             null, // Listen address. (null = listen on all interfaces)
-                            1389, // Listen port (0 = automatically choose an available port)
+                            port, // Listen port (0 = automatically choose an available port)
                             serverSSLUtil.createSSLSocketFactory()), // StartTLS factory
                     InMemoryListenerConfig.createLDAPSConfig("LDAPS", // Listener name
                             null, // Listen address. (null = listen on all interfaces)
-                            1636, // Listen port (0 = automatically choose an available port)
+                            0, // Listen port (0 = automatically choose an available port)
                             serverSSLUtil.createSSLServerSocketFactory(), // Server factory
                             clientSSLUtil.createSSLSocketFactory())); // Client factory
 
@@ -114,13 +114,12 @@ public class InMemoryTestLdapDirectoryServer implements Closeable {
                         populateDefaultEntries(c);
                     }
                     retryCount = 0;
-                } catch (final Throwable e) {
-                    Thread.sleep(2000);
+                } catch (final Exception e) {
                     retryCount--;
                 }
             }
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -165,7 +164,7 @@ public class InMemoryTestLdapDirectoryServer implements Closeable {
     public boolean isAlive() {
         try {
             return getConnection() != null;
-        } catch (final Throwable e) {
+        } catch (final Exception e) {
             return false;
         }
     }

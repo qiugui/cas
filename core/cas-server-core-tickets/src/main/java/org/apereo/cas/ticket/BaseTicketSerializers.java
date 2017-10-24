@@ -2,12 +2,14 @@ package org.apereo.cas.ticket;
 
 import com.fasterxml.jackson.core.PrettyPrinter;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
-import com.google.common.base.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.ticket.proxy.ProxyGrantingTicket;
 import org.apereo.cas.ticket.proxy.ProxyTicket;
+import org.apereo.cas.ticket.registry.EncodedTicket;
 import org.apereo.cas.util.serialization.AbstractJacksonBackedStringSerializer;
 import org.apereo.cas.util.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.StringWriter;
 import java.util.Map;
@@ -21,8 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 5.1.0
  */
 public abstract class BaseTicketSerializers {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BaseTicketSerializers.class);
     private static final Map<String, Class> TICKET_TYPE_CACHE = new ConcurrentHashMap<>();
-
     private static final PrettyPrinter MINIMAL_PRETTY_PRINTER = new MinimalPrettyPrinter();
 
     /**
@@ -89,6 +91,17 @@ public abstract class BaseTicketSerializers {
         };
     }
 
+    public static StringSerializer<EncodedTicket> getEncodedTicketSerializer() {
+        return new AbstractJacksonBackedStringSerializer<EncodedTicket>(MINIMAL_PRETTY_PRINTER) {
+            private static final long serialVersionUID = 8959835299162115085L;
+
+            @Override
+            protected Class<EncodedTicket> getTypeToSerialize() {
+                return EncodedTicket.class;
+            }
+        };
+    }
+    
     /**
      * Serialize ticket.
      *
@@ -101,6 +114,10 @@ public abstract class BaseTicketSerializers {
             getTicketGrantingTicketSerializer().to(writer, TicketGrantingTicket.class.cast(ticket));
         } else if (ticket instanceof ServiceTicket) {
             getServiceTicketSerializer().to(writer, ServiceTicket.class.cast(ticket));
+        } else if (ticket instanceof EncodedTicket) {
+            getEncodedTicketSerializer().to(writer, EncodedTicket.class.cast(ticket));
+        } else {
+            LOGGER.warn("Could not find serializer to marshal ticket [{}]. Ticket type may not be supported.", ticket.getId());
         }
 
         return writer.toString();
@@ -128,7 +145,7 @@ public abstract class BaseTicketSerializers {
             }
             return deserializeTicket(ticketContent, clazz);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -146,6 +163,8 @@ public abstract class BaseTicketSerializers {
             ticket = getTicketGrantingTicketSerializer().from(ticketContent);
         } else if (ServiceTicket.class.isAssignableFrom(clazz)) {
             ticket = getServiceTicketSerializer().from(ticketContent);
+        } else if (EncodedTicket.class.isAssignableFrom(clazz)) {
+            ticket = getEncodedTicketSerializer().from(ticketContent);
         }
         if (ticket == null) {
             throw new InvalidTicketException(clazz.getName());

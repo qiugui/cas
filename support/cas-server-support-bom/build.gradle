@@ -80,20 +80,24 @@ def generateBom() {
 
 install {
     doFirst {
-        repositories.mavenInstaller.pom = generateBom()
+        if (publishingRelease || publishSnapshots) {
+            repositories.mavenInstaller.pom = generateBom()
+        }
     }
 }
 
 uploadArchives {
     doFirst {
-        repositories.mavenDeployer.pom = generateBom()
+        if (publishingRelease || publishSnapshots) {
+            repositories.mavenDeployer.pom = generateBom()
+        }
     }
 
     repositories.mavenDeployer {
         configuration = project.configurations.archives
         beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
 
-        if (publishReleases) {
+        if (publishingRelease) {
             repository(url: "$sonatypeRepositoryUrl") {
                 authentication(userName: sonatypeUsername, password: sonatypePassword);
             }

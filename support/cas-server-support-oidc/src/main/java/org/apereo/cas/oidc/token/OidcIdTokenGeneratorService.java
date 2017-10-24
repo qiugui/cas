@@ -7,7 +7,7 @@ import org.apereo.cas.authentication.principal.Principal;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.oidc.OidcConstants;
 import org.apereo.cas.services.OidcRegisteredService;
-import org.apereo.cas.support.oauth.OAuthConstants;
+import org.apereo.cas.support.oauth.OAuth20Constants;
 import org.apereo.cas.support.oauth.OAuth20ResponseTypes;
 import org.apereo.cas.support.oauth.services.OAuthRegisteredService;
 import org.apereo.cas.ticket.accesstoken.AccessToken;
@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
@@ -75,8 +76,11 @@ public class OidcIdTokenGeneratorService {
                            final OAuth20ResponseTypes responseType,
                            final OAuthRegisteredService registeredService) throws Exception {
 
-        final OidcRegisteredService oidcRegisteredService = (OidcRegisteredService) registeredService;
+        if (!(registeredService instanceof OidcRegisteredService)) {
+            throw new IllegalArgumentException("Registered service instance is not an OIDC service");
+        }
 
+        final OidcRegisteredService oidcRegisteredService = (OidcRegisteredService) registeredService;
         final J2EContext context = WebUtils.getPac4jJ2EContext(request, response);
         final ProfileManager manager = WebUtils.getPac4jProfileManager(request, response);
         final Optional<UserProfile> profile = manager.get(true);
@@ -134,8 +138,8 @@ public class OidcIdTokenGeneratorService {
             claims.setStringListClaim(OidcConstants.AMR, val.toArray(new String[]{}));
         }
 
-        claims.setClaim(OAuthConstants.STATE, authentication.getAttributes().get(OAuthConstants.STATE));
-        claims.setClaim(OAuthConstants.NONCE, authentication.getAttributes().get(OAuthConstants.NONCE));
+        claims.setClaim(OAuth20Constants.STATE, authentication.getAttributes().get(OAuth20Constants.STATE));
+        claims.setClaim(OAuth20Constants.NONCE, authentication.getAttributes().get(OAuth20Constants.NONCE));
         claims.setClaim(OidcConstants.CLAIM_AT_HASH, generateAccessTokenHash(accessTokenId, service));
 
         principal.getAttributes().entrySet().stream()
@@ -151,7 +155,7 @@ public class OidcIdTokenGeneratorService {
 
     private String generateAccessTokenHash(final AccessToken accessTokenId,
                                            final OidcRegisteredService service) {
-        final byte[] tokenBytes = accessTokenId.getId().getBytes();
+        final byte[] tokenBytes = accessTokenId.getId().getBytes(StandardCharsets.UTF_8);
         final String hashAlg;
 
         switch (signingService.getJsonWebKeySigningAlgorithm()) {

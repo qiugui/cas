@@ -1,6 +1,5 @@
 package org.apereo.cas.util.http;
 
-import com.google.common.base.Throwables;
 import org.apache.http.ConnectionReuseStrategy;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
@@ -37,8 +36,8 @@ import javax.annotation.PreDestroy;
 import javax.net.ssl.HostnameVerifier;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -72,9 +71,9 @@ public class SimpleHttpClientFactoryBean implements FactoryBean<SimpleHttpClient
      * The default status codes we accept.
      */
     private static final int[] DEFAULT_ACCEPTABLE_CODES = new int[]{
-            HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_NOT_MODIFIED,
-            HttpURLConnection.HTTP_MOVED_TEMP, HttpURLConnection.HTTP_MOVED_PERM,
-            HttpURLConnection.HTTP_ACCEPTED, HttpURLConnection.HTTP_NO_CONTENT};
+        HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_NOT_MODIFIED,
+        HttpURLConnection.HTTP_MOVED_TEMP, HttpURLConnection.HTTP_MOVED_PERM,
+        HttpURLConnection.HTTP_ACCEPTED, HttpURLConnection.HTTP_NO_CONTENT};
 
     /**
      * 20% of the total of threads in the pool to handle overhead.
@@ -154,7 +153,7 @@ public class SimpleHttpClientFactoryBean implements FactoryBean<SimpleHttpClient
     /**
      * Default headers to be sent.
      **/
-    private Collection<? extends Header> defaultHeaders = Collections.emptyList();
+    private Collection<? extends Header> defaultHeaders = new ArrayList<>(0);
 
     /**
      * Default strategy implementation for proxy host authentication.
@@ -228,8 +227,8 @@ public class SimpleHttpClientFactoryBean implements FactoryBean<SimpleHttpClient
 
             final RequestConfig requestConfig = RequestConfig.custom()
                     .setSocketTimeout(this.readTimeout)
-                    .setConnectTimeout(Long.valueOf(this.connectionTimeout).intValue())
-                    .setConnectionRequestTimeout(Long.valueOf(this.connectionTimeout).intValue())
+                    .setConnectTimeout((int) this.connectionTimeout)
+                    .setConnectionRequestTimeout((int) this.connectionTimeout)
                     .setCircularRedirectsAllowed(this.circularRedirectsAllowed)
                     .setRedirectsEnabled(this.redirectsEnabled)
                     .setAuthenticationEnabled(this.authenticationEnabled)
@@ -255,7 +254,7 @@ public class SimpleHttpClientFactoryBean implements FactoryBean<SimpleHttpClient
 
         } catch (final Exception e) {
             LOGGER.error(e.getMessage(), e);
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -315,7 +314,7 @@ public class SimpleHttpClientFactoryBean implements FactoryBean<SimpleHttpClient
     }
 
     public List<Integer> getAcceptableCodes() {
-        return Collections.unmodifiableList(this.acceptableCodes);
+        return new ArrayList<>(this.acceptableCodes);
     }
 
     public void setAcceptableCodes(final int[] acceptableCodes) {

@@ -7,11 +7,9 @@ import org.apereo.cas.ticket.TicketGrantingTicket;
 import org.apereo.cas.ticket.registry.support.LockingStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.stream.Collectors;
+import java.io.Serializable;
 
 /**
  * This is {@link DefaultTicketRegistryCleaner}.
@@ -20,37 +18,25 @@ import java.util.stream.Collectors;
  * @since 5.0.0
  */
 @Transactional(transactionManager = "ticketTransactionManager", readOnly = false)
-public class DefaultTicketRegistryCleaner implements TicketRegistryCleaner {
-
+public class DefaultTicketRegistryCleaner implements TicketRegistryCleaner, Serializable {
+    private static final long serialVersionUID = -8581398063126547772L;
     private static final Logger LOGGER = LoggerFactory.getLogger(DefaultTicketRegistryCleaner.class);
 
     private final LogoutManager logoutManager;
     private final TicketRegistry ticketRegistry;
     private final LockingStrategy lockingStrategy;
-    private final boolean isCleanerEnabled;
 
-    public DefaultTicketRegistryCleaner(final LockingStrategy lockingStrategy, 
-                                        final LogoutManager logoutManager, 
-                                        final TicketRegistry ticketRegistry,
-                                        final boolean isCleanerEnabled) {
-
+    public DefaultTicketRegistryCleaner(final LockingStrategy lockingStrategy,
+                                        final LogoutManager logoutManager,
+                                        final TicketRegistry ticketRegistry) {
         this.lockingStrategy = lockingStrategy;
         this.logoutManager = logoutManager;
         this.ticketRegistry = ticketRegistry;
-        this.isCleanerEnabled = isCleanerEnabled;
     }
 
-    @Scheduled(initialDelayString = "${cas.ticket.registry.cleaner.startDelay:20000}",
-               fixedDelayString = "${cas.ticket.registry.cleaner.repeatInterval:60000}")
     @Override
     public void clean() {
         try {
-            if (!isCleanerEnabled) {
-                LOGGER.trace("Ticket registry cleaner is disabled for [{}]. No cleaner processes will run.",
-                        this.ticketRegistry.getClass().getSimpleName());
-                return;
-            }
-
             if (!isCleanerSupported()) {
                 LOGGER.trace("Ticket registry cleaner is not supported by [{}]. No cleaner processes will run.",
                         getClass().getSimpleName());
@@ -77,33 +63,32 @@ public class DefaultTicketRegistryCleaner implements TicketRegistryCleaner {
      * Clean tickets.
      */
     protected void cleanInternal() {
-        final Collection<Ticket> ticketsToRemove = ticketRegistry.getTickets()
-                .stream()
+        final int ticketsDeleted = ticketRegistry.getTicketsStream()
                 .filter(Ticket::isExpired)
-                .collect(Collectors.toSet());
-        LOGGER.debug("[{}] expired tickets found.", ticketsToRemove.size());
+                .mapToInt(this::cleanTicket)
+                .sum();
+        LOGGER.info("[{}] expired tickets removed.", ticketsDeleted);
+    }
 
-        int count = 0;
-
-        for (final Ticket ticket : ticketsToRemove) {
-            if (ticket instanceof TicketGrantingTicket) {
-                LOGGER.debug("Cleaning up expired ticket-granting ticket [{}]", ticket.getId());
-                logoutManager.performLogout((TicketGrantingTicket) ticket);
-                count += ticketRegistry.deleteTicket(ticket.getId());
-            } else if (ticket instanceof ServiceTicket) {
-                LOGGER.debug("Cleaning up expired service ticket [{}]", ticket.getId());
-                count += ticketRegistry.deleteTicket(ticket.getId());
-            } else {
-                LOGGER.warn("Unknown ticket type [{}] found to clean", ticket.getClass().getSimpleName());
-            }
+    @Override
+    public int cleanTicket(final Ticket ticket) {
+        if (ticket instanceof TicketGrantingTicket) {
+            LOGGER.debug("Cleaning up expired ticket-granting ticket [{}]", ticket.getId());
+            logoutManager.performLogout((TicketGrantingTicket) ticket);
+            return ticketRegistry.deleteTicket(ticket.getId());
         }
-        LOGGER.info("[{}] expired tickets removed.", count);
+        if (ticket instanceof ServiceTicket) {
+            LOGGER.debug("Cleaning up expired service ticket [{}]", ticket.getId());
+            return ticketRegistry.deleteTicket(ticket.getId());
+        }
+        LOGGER.warn("Unknown ticket type [{}] found to clean", ticket.getClass().getSimpleName());
+        return 0;
     }
 
     /**
-     * Indicates whether the registry supports automatic ticket cleanup.
+     * Indicates whether the registry supports automated ticket cleanup.
      * Generally, a registry that is able to return a collection of available
-     * tickets should be able to support the cleanup process. Default is <code>true</code>.
+     * tickets should be able to support the cleanup process. Default is {@code true}.
      *
      * @return true/false.
      */

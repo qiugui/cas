@@ -3,6 +3,7 @@ package org.apereo.cas.support.sms;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.util.io.SmsSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +17,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.StringWriter;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +34,7 @@ public class ClickatellSmsSender implements SmsSender {
     private final String token;
     private final String serverUrl;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final RestTemplate restTemplate = new RestTemplate();
 
     public ClickatellSmsSender(final String token, final String serverUrl) {
@@ -55,7 +55,7 @@ public class ClickatellSmsSender implements SmsSender {
 
             final Map<String, Object> map = new HashMap<>();
             map.put("content", message);
-            map.put("to", Arrays.asList(to));
+            map.put("to", CollectionUtils.wrap(to));
             map.put("from", from);
 
             final StringWriter stringify = new StringWriter();
@@ -64,7 +64,7 @@ public class ClickatellSmsSender implements SmsSender {
             final HttpEntity<String> request = new HttpEntity<>(stringify.toString(), headers);
             final ResponseEntity<Map> response = restTemplate.postForEntity(new URI(this.serverUrl), request, Map.class);
             if (response.hasBody()) {
-                final List<Map> messages = (java.util.List<Map>) response.getBody().get("messages");
+                final List<Map> messages = (List<Map>) response.getBody().get("messages");
 
                 final String error = (String) response.getBody().get("error");
                 if (StringUtils.isNotBlank(error)) {
@@ -73,7 +73,7 @@ public class ClickatellSmsSender implements SmsSender {
                 }
 
                 final List<String> errors = messages.stream()
-                        .filter(m -> m.containsKey("accepted") && !Boolean.valueOf(m.get("accepted").toString()) && m.containsKey("error"))
+                        .filter(m -> m.containsKey("accepted") && !Boolean.parseBoolean(m.get("accepted").toString()) && m.containsKey("error"))
                         .map(m -> (String) m.get("error"))
                         .collect(Collectors.toList());
                 if (errors.isEmpty()) {

@@ -17,7 +17,6 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.util.Assert;
 
 import java.io.Serializable;
 import java.net.MalformedURLException;
@@ -49,17 +48,17 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
     /**
      * the acceptable codes supported by this client.
      */
-    private List<Integer> acceptableCodes;
+    private final List<Integer> acceptableCodes;
 
     /**
      * the HTTP client for this client.
      */
-    private CloseableHttpClient httpClient;
+    private final transient CloseableHttpClient httpClient;
 
     /**
      * the request executor service for this client.
      */
-    private FutureRequestExecutionService requestExecutorService;
+    private final FutureRequestExecutionService requestExecutorService;
 
     /**
      * Instantiates a new Simple HTTP client, based on the provided inputs.
@@ -68,7 +67,8 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
      * @param httpClient             the HTTP client used by the client
      * @param requestExecutorService the request executor service used by the client
      */
-    SimpleHttpClient(final List<Integer> acceptableCodes, final CloseableHttpClient httpClient, final FutureRequestExecutionService requestExecutorService) {
+    SimpleHttpClient(final List<Integer> acceptableCodes, final CloseableHttpClient httpClient,
+                     final FutureRequestExecutionService requestExecutorService) {
         this.acceptableCodes = acceptableCodes.stream().sorted().collect(Collectors.toList());
         this.httpClient = httpClient;
         this.requestExecutorService = requestExecutorService;
@@ -76,8 +76,6 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
 
     @Override
     public boolean sendMessageToEndPoint(final HttpMessage message) {
-        Assert.notNull(this.httpClient);
-
         try {
             final HttpPost request = new HttpPost(message.getUrl().toURI());
             request.addHeader("Content-Type", message.getContentType());
@@ -86,25 +84,23 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
             request.setEntity(entity);
 
             final ResponseHandler<Boolean> handler = response -> response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
-            final HttpRequestFutureTask<Boolean> task = this.requestExecutorService.execute(request,
-                    HttpClientContext.create(), handler);
+            LOGGER.debug("Created HTTP post message payload [{}]", request);
+            final HttpRequestFutureTask<Boolean> task = this.requestExecutorService.execute(request, HttpClientContext.create(), handler);
             if (message.isAsynchronous()) {
                 return true;
             }
             return task.get();
         } catch (final RejectedExecutionException e) {
-            LOGGER.warn(e.getMessage(), e);
+            LOGGER.warn("Execution rejected", e);
             return false;
         } catch (final Exception e) {
-            LOGGER.debug(e.getMessage(), e);
+            LOGGER.debug("Unable to send message", e);
             return false;
         }
     }
 
     @Override
     public HttpMessage sendMessageToEndPoint(final URL url) {
-        Assert.notNull(this.httpClient);
-
         HttpEntity entity = null;
 
         try (CloseableHttpResponse response = this.httpClient.execute(new HttpGet(url.toURI()))) {
@@ -128,7 +124,7 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
                         value);
             }
         } catch (final Exception e) {
-            LOGGER.error(e.getMessage(), e);
+            LOGGER.error("Unable to send message", e);
         } finally {
             EntityUtils.consumeQuietly(entity);
         }
@@ -141,15 +137,13 @@ public class SimpleHttpClient implements HttpClient, Serializable, DisposableBea
             final URL u = new URL(url);
             return isValidEndPoint(u);
         } catch (final MalformedURLException e) {
-            LOGGER.error(e.getMessage(), e);
+            LOGGER.error("Unable to build URL", e);
             return false;
         }
     }
 
     @Override
     public boolean isValidEndPoint(final URL url) {
-        Assert.notNull(this.httpClient);
-
         HttpEntity entity = null;
 
         try (CloseableHttpResponse response = this.httpClient.execute(new HttpGet(url.toURI()))) {

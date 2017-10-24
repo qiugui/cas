@@ -1,20 +1,14 @@
 description = "Apereo CAS Graphical User Authentication Support"
 dependencies {
-    compile project(":core:cas-server-core-util")
-    compile project(":core:cas-server-core-webflow")
-    compile project(":core:cas-server-core-web")
-    compile project(":core:cas-server-core-authentication")
-    compile project(":support:cas-server-support-ldap-core")
-    compile project(":core:cas-server-core-configuration")
-    compile project(":support:cas-server-support-jpa-util")
+    implementation project(":core:cas-server-core-util")
+    implementation project(":core:cas-server-core-webflow")
+    implementation project(":core:cas-server-core-web")
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":support:cas-server-support-ldap-core")
+    implementation project(":core:cas-server-core-configuration")
+    implementation project(":support:cas-server-support-jpa-util")
+    
     provided project(":support:cas-server-support-actions")
-    runtime project(":support:cas-server-support-jdbc-drivers")
-
-    compile libraries.spring
-    compile libraries.springcloud
-    compile libraries.jackson
-    compile libraries.ldaptive
-    compile libraries.hibernate
-    testCompile libraries.tests
-    testCompile project(":core:cas-server-core-services")
+    runtimeOnly project(":support:cas-server-support-jdbc-drivers")
+    testImplementation project(":core:cas-server-core-services")
 }

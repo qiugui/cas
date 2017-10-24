@@ -1,12 +1,13 @@
 package org.apereo.cas.config;
 
-import com.google.common.base.Throwables;
 import org.apereo.cas.CipherExecutor;
 import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.flow.CasDefaultFlowUrlHandler;
 import org.apereo.cas.web.flow.CasWebflowConfigurer;
-import org.apereo.cas.web.flow.DefaultWebflowConfigurer;
 import org.apereo.cas.web.flow.LogoutConversionService;
+import org.apereo.cas.web.flow.configurer.DefaultWebflowConfigurer;
+import org.apereo.cas.web.flow.configurer.GroovyWebflowConfigurer;
 import org.apereo.spring.webflow.plugin.ClientFlowExecutionRepository;
 import org.apereo.spring.webflow.plugin.EncryptedTranscoder;
 import org.apereo.spring.webflow.plugin.Transcoder;
@@ -16,13 +17,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.binding.convert.ConversionService;
 import org.springframework.binding.expression.ExpressionParser;
+import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.Ordered;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.web.servlet.HandlerAdapter;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -52,7 +56,6 @@ import javax.naming.OperationNotSupportedException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 
@@ -65,6 +68,7 @@ import java.util.List;
  */
 @Configuration("casWebflowContextConfiguration")
 @EnableConfigurationProperties(CasConfigurationProperties.class)
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE)
 public class CasWebflowContextConfiguration {
 
     private static final int LOGOUT_FLOW_HANDLER_ORDER = 3;
@@ -87,11 +91,9 @@ public class CasWebflowContextConfiguration {
 
     @Bean
     public ExpressionParser expressionParser() {
-        final WebFlowSpringELExpressionParser parser = new WebFlowSpringELExpressionParser(
+        return new WebFlowSpringELExpressionParser(
                 new SpelExpressionParser(),
                 logoutConversionService());
-
-        return parser;
     }
 
     @Bean
@@ -103,7 +105,7 @@ public class CasWebflowContextConfiguration {
     @Bean
     public ViewFactoryCreator viewFactoryCreator() {
         final MvcViewFactoryCreator resolver = new MvcViewFactoryCreator();
-        resolver.setViewResolvers(Collections.singletonList(this.registeredServiceViewResolver));
+        resolver.setViewResolvers(CollectionUtils.wrap(this.registeredServiceViewResolver));
         return resolver;
     }
 
@@ -146,7 +148,7 @@ public class CasWebflowContextConfiguration {
 
                 @Override
                 public void encrypt(final InputStream inputStream, final OutputStream outputStream) {
-                    throw new RuntimeException(
+                    throw new IllegalArgumentException(
                             new OperationNotSupportedException("Encrypting input stream is not supported"));
                 }
 
@@ -157,12 +159,12 @@ public class CasWebflowContextConfiguration {
 
                 @Override
                 public void decrypt(final InputStream inputStream, final OutputStream outputStream) {
-                    throw new RuntimeException(
+                    throw new IllegalArgumentException(
                             new OperationNotSupportedException("Decrypting input stream is not supported"));
                 }
             };
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -276,7 +278,7 @@ public class CasWebflowContextConfiguration {
         final FlowDefinitionRegistry loginFlowRegistry = loginFlowRegistry();
 
         final SessionBindingConversationManager conversationManager = new SessionBindingConversationManager();
-        conversationManager.setLockTimeoutSeconds(Long.valueOf(casProperties.getWebflow().getSession().getLockTimeout()).intValue());
+        conversationManager.setLockTimeoutSeconds((int) casProperties.getWebflow().getSession().getLockTimeout());
         conversationManager.setMaxConversations(casProperties.getWebflow().getSession().getMaxConversations());
 
         final FlowExecutionImplFactory executionFactory = new FlowExecutionImplFactory();
@@ -306,8 +308,19 @@ public class CasWebflowContextConfiguration {
     @ConditionalOnMissingBean(name = "defaultWebflowConfigurer")
     @Bean
     public CasWebflowConfigurer defaultWebflowConfigurer() {
-        final DefaultWebflowConfigurer c = new DefaultWebflowConfigurer(builder(), loginFlowRegistry());
+        final DefaultWebflowConfigurer c = new DefaultWebflowConfigurer(builder(), loginFlowRegistry(), applicationContext, casProperties);
         c.setLogoutFlowDefinitionRegistry(logoutFlowRegistry());
+        c.initialize();
+        return c;
+    }
+
+    @ConditionalOnMissingBean(name = "groovyWebflowConfigurer")
+    @Bean
+    @DependsOn("defaultWebflowConfigurer")
+    public CasWebflowConfigurer groovyWebflowConfigurer() {
+        final GroovyWebflowConfigurer c = new GroovyWebflowConfigurer(builder(), loginFlowRegistry(), applicationContext, casProperties);
+        c.setLogoutFlowDefinitionRegistry(logoutFlowRegistry());
+        c.initialize();
         return c;
     }
 }

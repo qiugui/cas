@@ -12,6 +12,15 @@ public interface CasWebflowConstants {
      */
     String TRANSITION_ID_SUCCESS = "success";
 
+    /** Proceed transition id. */
+    String TRANSITION_ID_PROCEED = "proceed";
+
+    /** Confirm transition id. */
+    String TRANSITION_ID_CONFIRM = "confirm";
+
+    /** Cancel transition id. */
+    String TRANSITION_ID_CANCEL = "cancel";
+
     /**
      * The state id 'success'.
      */
@@ -21,7 +30,7 @@ public interface CasWebflowConstants {
      * The state id 'verifyTrustedDevice'.
      */
     String STATE_ID_VERIFY_TRUSTED_DEVICE = "verifyTrustedDevice";
-    
+
     /**
      * The view id 'registerDeviceView'.
      */
@@ -33,15 +42,21 @@ public interface CasWebflowConstants {
     String STATE_ID_REGISTER_TRUSTED_DEVICE = "registerTrustedDevice";
 
     /**
-     * The transition state 'realSubmit'.
+     * The state 'realSubmit'.
      */
-    String TRANSITION_ID_REAL_SUBMIT = "realSubmit";
+    String STATE_ID_REAL_SUBMIT = "realSubmit";
+    
+
+    /**
+     * The transition state 'successWithWarnings'.
+     */
+    String TRANSITION_ID_SUCCESS_WITH_WARNINGS = "successWithWarnings";
 
     /**
      * The decision state 'checkRegistrationRequired'.
      */
     String DECISION_STATE_REQUIRE_REGISTRATION = "checkRegistrationRequired";
-    
+
     /**
      * The transition state 'yes'.
      */
@@ -62,6 +77,21 @@ public interface CasWebflowConstants {
     String TRANSITION_ID_ERROR = "error";
 
     /**
+     * The transition state 'gateway'.
+     */
+    String TRANSITION_ID_GATEWAY = "gateway";
+    
+    /**
+     * The view state 'error'.
+     */
+    String VIEW_ID_ERROR = "error";
+
+    /**
+     * The view state 'showAuthenticationWarningMessages'.
+     */
+    String VIEW_ID_SHOW_AUTHN_WARNING_MSGS = "showAuthenticationWarningMessages";
+
+    /**
      * The transition state 'authenticationFailure'.
      */
     String TRANSITION_ID_AUTHENTICATION_FAILURE = "authenticationFailure";
@@ -70,7 +100,7 @@ public interface CasWebflowConstants {
      * 'gateway' state id.
      */
     String STATE_ID_GATEWAY = "gateway";
-    
+
     /**
      * The transition state 'warn'.
      */
@@ -79,12 +109,17 @@ public interface CasWebflowConstants {
     /**
      * The transition state 'initialAuthenticationRequestValidationCheck'.
      */
-    String TRANSITION_ID_INITIAL_AUTHN_REQUEST_VALIDATION_CHECK = "initialAuthenticationRequestValidationCheck";
+    String STATE_ID_INITIAL_AUTHN_REQUEST_VALIDATION_CHECK = "initialAuthenticationRequestValidationCheck";
 
     /**
      * The transition state 'sendTicketGrantingTicket'.
      */
     String TRANSITION_ID_SEND_TICKET_GRANTING_TICKET = "sendTicketGrantingTicket";
+
+    /**
+     * The state id 'sendTicketGrantingTicket'.
+     */
+    String STATE_ID_SEND_TICKET_GRANTING_TICKET = "sendTicketGrantingTicket";
 
     /**
      * The state 'initializeLoginForm'.
@@ -126,6 +161,11 @@ public interface CasWebflowConstants {
      * The state 'postView'.
      */
     String STATE_ID_POST_VIEW = "postView";
+
+    /**
+     * The state 'headerView'.
+     */
+    String STATE_ID_HEADER_VIEW = "headerView";
 
     /**
      * The state 'showWarningView'.
@@ -187,7 +227,7 @@ public interface CasWebflowConstants {
      * The view id 'casPostResponseView'.
      */
     String VIEW_ID_POST_RESPONSE = "casPostResponseView";
-    
+
     /**
      * The view id 'casGenericSuccessView'.
      */
@@ -214,10 +254,55 @@ public interface CasWebflowConstants {
     String VIEW_ID_SEND_RESET_PASSWORD_ACCT_INFO = "casResetPasswordSendInstructionsView";
 
     /**
+     * View id 'casBadHoursView'.
+     */
+    String VIEW_ID_INVALID_AUTHENTICATION_HOURS = "casBadHoursView";
+
+    /**
+     * View id 'casPasswordUpdateSuccessView'.
+     */
+    String VIEW_ID_PASSWORD_UPDATE_SUCCESS = "casPasswordUpdateSuccessView";
+
+    /**
+     * View id 'casAuthenticationBlockedView'.
+     */
+    String VIEW_ID_AUTHENTICATION_BLOCKED = "casAuthenticationBlockedView";
+
+    /**
+     * View id 'casResetPasswordErrorView'.
+     */
+    String VIEW_ID_PASSWORD_RESET_ERROR = "casResetPasswordErrorView";
+
+    /**
+     * View id 'casBadWorkstationView'.
+     */
+    String VIEW_ID_INVALID_WORKSTATION = "casBadWorkstationView";
+
+    /**
+     * View id 'casAccountDisabledView'.
+     */
+    String VIEW_ID_ACCOUNT_DISABLED = "casAccountDisabledView";
+
+    /**
+     * View id 'casAccountLockedView'.
+     */
+    String VIEW_ID_ACCOUNT_LOCKED = "casAccountLockedView";
+
+    /**
+     * View id 'casMustChangePassView'.
+     */
+    String VIEW_ID_MUST_CHANGE_PASSWORD = "casMustChangePassView";
+
+    /**
+     * View id 'casExpiredPassView'.
+     */
+    String VIEW_ID_EXPIRED_PASSWORD = "casExpiredPassView";
+    
+    /**
      * View id 'casResetPasswordSentInstructions'.
      */
     String VIEW_ID_SENT_RESET_PASSWORD_ACCT_INFO = "casResetPasswordSentInstructionsView";
-    
+
     /**
      * Transition id 'resetPassword'.
      */
@@ -231,5 +316,55 @@ public interface CasWebflowConstants {
     /**
      * State id 'finishLogout'.
      */
-    String STATE_UD_FINISH_LOGOUT = "finishLogout";
+    String STATE_ID_FINISH_LOGOUT = "finishLogout";
+
+    /**
+     * State id 'casPasswordUpdateSuccess'.
+     */
+    String STATE_ID_PASSWORD_UPDATE_SUCCESS = "casPasswordUpdateSuccess";
+
+    /**
+     * State id 'handleAuthenticationFailure'.
+     */
+    String STATE_ID_HANDLE_AUTHN_FAILURE = "handleAuthenticationFailure";
+
+    /**
+     * Action id 'initialFlowSetupAction'.
+     */
+    String ACTION_ID_INIT_FLOW_SETUP = "initialFlowSetupAction";
+
+    /**
+     * Action id 'generateServiceTicketAction'.
+     */
+    String ACTION_ID_GENERATE_SERVICE_TICKET = "generateServiceTicketAction";
+
+    /**
+     * Action id 'redirectToServiceAction'.
+     */
+    String ACTION_ID_REDIRECT_TO_SERVICE = "redirectToServiceAction";
+
+    /**
+     * Action id 'redirectToServiceAction'.
+     */
+    String ACTION_ID_TERMINATE_SESSION = "terminateSessionAction";
+
+    /**
+     * Action id 'authenticationExceptionHandler'.
+     */
+    String ACTION_ID_AUTHENTICATION_EXCEPTION_HANDLER = "authenticationExceptionHandler";
+    
+    /**
+     * Action id 'sendTicketGrantingTicketAction'.
+     */
+    String ACTION_ID_SEND_TICKET_GRANTING_TICKET = "sendTicketGrantingTicketAction";
+    
+    /**
+     * Transition id 'changePassword'.
+     */
+    String TRANSITION_ID_CHANGE_PASSWORD = "changePassword";
+
+    /**
+     * State id 'proceedFromAuthenticationWarningView'.
+     */
+    String STATE_ID_PROCEED_FROM_AUTHENTICATION_WARNINGS_VIEW = "proceedFromAuthenticationWarningView";
 }

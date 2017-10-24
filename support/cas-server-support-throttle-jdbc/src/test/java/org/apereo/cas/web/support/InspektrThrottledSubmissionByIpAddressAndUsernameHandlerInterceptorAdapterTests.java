@@ -13,13 +13,18 @@ import org.apereo.cas.config.CasCoreAuthenticationHandlersConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationMetadataConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationPolicyConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationPrincipalConfiguration;
+import org.apereo.cas.config.CasCoreAuthenticationServiceSelectionStrategyConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationSupportConfiguration;
 import org.apereo.cas.config.CasCoreConfiguration;
 import org.apereo.cas.config.CasCoreHttpConfiguration;
+import org.apereo.cas.config.CasCoreServicesAuthenticationConfiguration;
 import org.apereo.cas.config.CasCoreServicesConfiguration;
 import org.apereo.cas.config.CasCoreTicketsConfiguration;
 import org.apereo.cas.config.CasCoreUtilConfiguration;
+import org.apereo.cas.config.CasCoreWebConfiguration;
 import org.apereo.cas.config.CasPersonDirectoryConfiguration;
+import org.apereo.cas.config.support.CasWebApplicationServiceFactoryConfiguration;
+import org.apereo.cas.config.CasCoreTicketCatalogConfiguration;
 import org.apereo.cas.logout.config.CasCoreLogoutConfiguration;
 import org.apereo.cas.web.support.config.CasJdbcThrottlingConfiguration;
 import org.apereo.inspektr.common.web.ClientInfo;
@@ -48,13 +53,15 @@ import static org.junit.Assert.*;
  * @since 3.0.0
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = {CasJdbcThrottlingConfiguration.class, 
+@SpringBootTest(classes = {CasJdbcThrottlingConfiguration.class,
         CasCoreAuditConfiguration.class,
-        CasCoreConfiguration.class, 
+        CasCoreConfiguration.class,
+        CasCoreAuthenticationServiceSelectionStrategyConfiguration.class,
         CasCoreServicesConfiguration.class,
-        CasCoreUtilConfiguration.class, 
+        CasCoreUtilConfiguration.class,
         CasCoreTicketsConfiguration.class,
-        CasCoreLogoutConfiguration.class, 
+        CasCoreTicketCatalogConfiguration.class,
+        CasCoreLogoutConfiguration.class,
         RefreshAutoConfiguration.class,
         CasPersonDirectoryConfiguration.class,
         CasCoreAuthenticationPrincipalConfiguration.class,
@@ -62,11 +69,14 @@ import static org.junit.Assert.*;
         CasCoreAuthenticationMetadataConfiguration.class,
         CasCoreAuthenticationSupportConfiguration.class,
         CasCoreAuthenticationHandlersConfiguration.class,
-        CasCoreAuthenticationConfiguration.class,
+        CasCoreAuthenticationConfiguration.class, 
+        CasCoreServicesAuthenticationConfiguration.class,
         CasCoreHttpConfiguration.class,
-        CasSupportJdbcAuditConfiguration.class})
+        CasSupportJdbcAuditConfiguration.class,
+        CasCoreWebConfiguration.class, 
+        CasWebApplicationServiceFactoryConfiguration.class})
 @ContextConfiguration(locations = {"classpath:/jdbc-audit-context.xml"})
-@TestPropertySource(locations={"classpath:/casthrottle.properties"})
+@TestPropertySource(locations = {"classpath:/casthrottle.properties"})
 public class InspektrThrottledSubmissionByIpAddressAndUsernameHandlerInterceptorAdapterTests extends
         AbstractThrottledSubmissionHandlerInterceptorAdapterTests {
 
@@ -90,8 +100,7 @@ public class InspektrThrottledSubmissionByIpAddressAndUsernameHandlerInterceptor
         throttle.preHandle(request, response, null);
 
         try {
-            authenticationManager.authenticate(AuthenticationTransaction.wrap(CoreAuthenticationTestUtils.getService(),
-                    badCredentials(username)));
+            authenticationManager.authenticate(AuthenticationTransaction.wrap(CoreAuthenticationTestUtils.getService(), badCredentials(username)));
         } catch (final AuthenticationException e) {
             throttle.postHandle(request, response, null, null);
             return response;

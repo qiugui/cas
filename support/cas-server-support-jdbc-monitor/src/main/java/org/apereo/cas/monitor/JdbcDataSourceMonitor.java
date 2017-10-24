@@ -1,12 +1,8 @@
 package org.apereo.cas.monitor;
 
-import com.google.common.base.Throwables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
-import java.sql.ResultSet;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -16,9 +12,7 @@ import java.util.concurrent.ExecutorService;
  * @since 3.5.1
  */
 public class JdbcDataSourceMonitor extends AbstractPoolMonitor {
-    private static final Logger LOGGER = LoggerFactory.getLogger(JdbcDataSourceMonitor.class);
-    
-    private JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
     private final String validationQuery;
             
     /**
@@ -33,35 +27,21 @@ public class JdbcDataSourceMonitor extends AbstractPoolMonitor {
     public JdbcDataSourceMonitor(final ExecutorService executorService, final int maxWait,
                                  final DataSource dataSource, final String validationQuery) {
         super(JdbcDataSourceMonitor.class.getSimpleName(), executorService, maxWait);
-        if (dataSource != null) {
-            this.jdbcTemplate = new JdbcTemplate(dataSource);
-        } else {
-            LOGGER.debug("No data source is defined to monitor");
-        }
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.validationQuery = validationQuery;
     }
 
     @Override
     protected StatusCode checkPool() throws Exception {
         try {
-            return this.jdbcTemplate.query(this.validationQuery, (ResultSet rs) -> {
+            return this.jdbcTemplate.query(this.validationQuery, rs -> {
                 if (rs.next()) {
                     return StatusCode.OK;
                 }
                 return StatusCode.WARN;
             });
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
-    }
-
-    @Override
-    protected int getIdleCount() {
-        return PoolStatus.UNKNOWN_COUNT;
-    }
-
-    @Override
-    protected int getActiveCount() {
-        return PoolStatus.UNKNOWN_COUNT;
     }
 }

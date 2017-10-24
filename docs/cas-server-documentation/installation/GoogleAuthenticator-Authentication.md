@@ -31,7 +31,7 @@ may be removed.
 
 ## Registration
 
-By default, an account registry implementation is included that collects user device registration and saves them into memory.
+By default, an account registry implementation is included that collects user device registrations and saves them into memory.
 Issued tokens are also captured into a self-cleaning cache to prevent token reuse for a configurable period of time.
 This option should only be used for demo and testing purposes. Production deployments of this feature will require a separate
 implementation of the registry that is capable to register accounts into persistent storage.
@@ -50,6 +50,38 @@ Registration records and tokens may be kept inside a database instance via the f
 
 To learn how to configure database drivers, [please see this guide](JDBC-Drivers.html).
 To see the relevant list of CAS properties, please [review this guide](Configuration-Properties.html#google-authenticator-jpa).
+
+#### MySQL / Galera Limitations
+
+Registration records and tokens keps inside a MySQL database backd by a [Galera cluster](http://galeracluster.com) might produce the following error when running CAS for the first time: `This table type requires a primary key`.
+
+This is due to the fact that Galera needs primary keys on all tables (Galera setting `innodb_force_primary_key = 1`). [See Galera known limitations](https://mariadb.com/kb/en/mariadb/mariadb-galera-cluster-known-limitations/), but the `hibernate_sequence` table does not define a primary key (See [HHH-11923](https://hibernate.atlassian.net/browse/HHH-11923)).
+
+To workaround this issue, you can either:
+
+1. Create a custom `hibernate_sequence` table manually with a primary key id column in your Galera cluster:
+
+```sql
+CREATE TABLE `hibernate_sequence` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `next_val` bigint(20) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+```
+
+2. Define your own `OneTimeToken` and `OneTimeTokenAccount` classes in your overlay project and in both classes, annotate the id column with a `@SequenceGenerator` definition holding a primary key:
+
+```java
+  @Id
+  @GeneratedValue(strategy = GenerationType.TABLE, generator="ticket_sequence")
+  @javax.persistence.TableGenerator (name="ticket_sequence", 
+                                     table="ticket_sequence", 
+                                     pkColumnName = "gen_name", 
+                                     valueColumnName = "next_val", 
+                                     pkColumnValue="gen_name", 
+                                     allocationSize=100)
+  private long id = Integer.MAX_VALUE;
+```
 
 ### MongoDb
 

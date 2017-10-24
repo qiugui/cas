@@ -1,6 +1,6 @@
 package org.apereo.cas.oidc.jwks;
 
-import com.google.common.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.CacheLoader;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jose4j.jwk.JsonWebKeySet;
@@ -19,7 +19,7 @@ import java.util.Optional;
  * @author Misagh Moayyed
  * @since 5.1.0
  */
-public class OidcDefaultJsonWebKeystoreCacheLoader extends CacheLoader<String, Optional<RsaJsonWebKey>> {
+public class OidcDefaultJsonWebKeystoreCacheLoader implements CacheLoader<String, Optional<RsaJsonWebKey>> {
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcDefaultJsonWebKeystoreCacheLoader.class);
 
     private final Resource jwksFile;
@@ -39,6 +39,43 @@ public class OidcDefaultJsonWebKeystoreCacheLoader extends CacheLoader<String, O
             return Optional.empty();
         }
         return Optional.of(key);
+    }
+    
+    private static RsaJsonWebKey getJsonSigningWebKeyFromJwks(final JsonWebKeySet jwks) {
+        if (jwks.getJsonWebKeys().isEmpty()) {
+            LOGGER.warn("No JSON web keys are available in the keystore");
+            return null;
+        }
+
+        final RsaJsonWebKey key = (RsaJsonWebKey) jwks.getJsonWebKeys().get(0);
+        if (StringUtils.isBlank(key.getAlgorithm())) {
+            LOGGER.warn("Located JSON web key [{}] has no algorithm defined", key);
+        }
+        if (StringUtils.isBlank(key.getKeyId())) {
+            LOGGER.warn("Located JSON web key [{}] has no key id defined", key);
+        }
+
+        if (key.getPrivateKey() == null) {
+            LOGGER.warn("Located JSON web key [{}] has no private key", key);
+            return null;
+        }
+        return key;
+    }
+
+    private static JsonWebKeySet buildJsonWebKeySet(final Resource resource) throws Exception {
+        final String json = IOUtils.toString(resource.getInputStream(), StandardCharsets.UTF_8);
+        LOGGER.debug("Retrieved JSON web key from [{}] as [{}]", resource, json);
+        return buildJsonWebKeySet(json);
+    }
+
+    private static JsonWebKeySet buildJsonWebKeySet(final String json) throws Exception {
+        final JsonWebKeySet jsonWebKeySet = new JsonWebKeySet(json);
+        final RsaJsonWebKey webKey = getJsonSigningWebKeyFromJwks(jsonWebKeySet);
+        if (webKey == null || webKey.getPrivateKey() == null) {
+            LOGGER.warn("JSON web key retrieved [{}] is not found or has no associated private key", webKey);
+            return null;
+        }
+        return jsonWebKeySet;
     }
 
     /**
@@ -81,40 +118,4 @@ public class OidcDefaultJsonWebKeystoreCacheLoader extends CacheLoader<String, O
         return Optional.empty();
     }
 
-    private RsaJsonWebKey getJsonSigningWebKeyFromJwks(final JsonWebKeySet jwks) {
-        if (jwks.getJsonWebKeys().isEmpty()) {
-            LOGGER.warn("No JSON web keys are available in the keystore");
-            return null;
-        }
-
-        final RsaJsonWebKey key = (RsaJsonWebKey) jwks.getJsonWebKeys().get(0);
-        if (StringUtils.isBlank(key.getAlgorithm())) {
-            LOGGER.warn("Located JSON web key [{}] has no algorithm defined", key);
-        }
-        if (StringUtils.isBlank(key.getKeyId())) {
-            LOGGER.warn("Located JSON web key [{}] has no key id defined", key);
-        }
-
-        if (key.getPrivateKey() == null) {
-            LOGGER.warn("Located JSON web key [{}] has no private key", key);
-            return null;
-        }
-        return key;
-    }
-
-    private JsonWebKeySet buildJsonWebKeySet(final Resource resource) throws Exception {
-        final String json = IOUtils.toString(resource.getInputStream(), StandardCharsets.UTF_8);
-        LOGGER.debug("Retrieved JSON web key from [{}] as [{}]", resource, json);
-        return buildJsonWebKeySet(json);
-    }
-
-    private JsonWebKeySet buildJsonWebKeySet(final String json) throws Exception {
-        final JsonWebKeySet jsonWebKeySet = new JsonWebKeySet(json);
-        final RsaJsonWebKey webKey = getJsonSigningWebKeyFromJwks(jsonWebKeySet);
-        if (webKey == null || webKey.getPrivateKey() == null) {
-            LOGGER.warn("JSON web key retrieved [{}] is not found or has no associated private key", webKey);
-            return null;
-        }
-        return jsonWebKeySet;
-    }
 }

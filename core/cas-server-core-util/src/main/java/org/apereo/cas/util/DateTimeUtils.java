@@ -5,12 +5,16 @@ import org.joda.time.ReadableInstant;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.chrono.ChronoZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -31,11 +35,90 @@ public final class DateTimeUtils {
      * @return the date/time instance
      */
     public static LocalDateTime localDateTimeOf(final String value) {
+        LocalDateTime result;
         try {
-            return LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            result = LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         } catch (final Exception e) {
-            return null;
+            result = null;
         }
+
+        try {
+            result = LocalDateTime.parse(value, DateTimeFormatter.ISO_ZONED_DATE_TIME);
+        } catch (final Exception e) {
+            result = null;
+        }
+
+        if (result == null) {
+            try {
+                result = LocalDateTime.parse(value);
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+        
+        if (result == null) {
+            try {
+                result = LocalDateTime.parse(value.toUpperCase(), DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a"));
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+
+        if (result == null) {
+            try {
+                result = LocalDateTime.parse(value.toUpperCase(), DateTimeFormatter.ofPattern("MM/dd/yyyy h:mm a"));
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+
+        if (result == null) {
+            try {
+                result = LocalDateTime.parse(value, DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm"));
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+
+        if (result == null) {
+            try {
+                final LocalDate ld = LocalDate.parse(value, DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+                result = LocalDateTime.of(ld, LocalTime.now());
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+        
+        if (result == null) {
+            try {
+                final LocalDate ld = LocalDate.parse(value);
+                result = LocalDateTime.of(ld, LocalTime.now());
+            } catch (final Exception e) {
+                result = null;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Local date time of local date time.
+     *
+     * @param time the time
+     * @return the local date time
+     */
+    public static LocalDateTime localDateTimeOf(final long time) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.systemDefault());
+    }
+
+    /**
+     * Local date time of local date time.
+     *
+     * @param time the time
+     * @return the local date time
+     */
+    public static LocalDateTime localDateTimeOf(final Date time) {
+        return localDateTimeOf(time.getTime());
     }
 
     /**
@@ -59,8 +142,18 @@ public final class DateTimeUtils {
      * @return ZonedDateTime representing time
      */
 
-    public static ZonedDateTime zonedDateTimeOf(final ZonedDateTime time) {
+    public static ZonedDateTime zonedDateTimeOf(final TemporalAccessor time) {
         return ZonedDateTime.from(time);
+    }
+
+    /**
+     * Gets ZonedDateTime for ReadableInstant.
+     *
+     * @param time Time object to be converted.
+     * @return ZonedDateTime representing time
+     */
+    public static ZonedDateTime zonedDateTimeOf(final ReadableInstant time) {
+        return zonedDateTimeOf(time.getMillis());
     }
 
     /**
@@ -82,16 +175,6 @@ public final class DateTimeUtils {
      */
     public static ZonedDateTime zonedDateTimeOf(final long time, final ZoneId zoneId) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), zoneId);
-    }
-
-    /**
-     * Gets ZonedDateTime for ReadableInstant.
-     *
-     * @param time Time object to be converted.
-     * @return ZonedDateTime representing time
-     */
-    public static ZonedDateTime zonedDateTimeOf(final ReadableInstant time) {
-        return zonedDateTimeOf(time.getMillis());
     }
 
     /**
@@ -130,7 +213,7 @@ public final class DateTimeUtils {
      * @param time Time object to be converted.
      * @return DateTime representing time
      */
-    public static DateTime dateTimeOf(final ZonedDateTime time) {
+    public static DateTime dateTimeOf(final ChronoZonedDateTime time) {
         return dateTimeOf(time.toInstant());
     }
 
@@ -140,7 +223,7 @@ public final class DateTimeUtils {
      * @param time Time object to be converted.
      * @return Date representing time
      */
-    public static Date dateOf(final ZonedDateTime time) {
+    public static Date dateOf(final ChronoZonedDateTime time) {
         return dateOf(time.toInstant());
     }
 
@@ -161,7 +244,7 @@ public final class DateTimeUtils {
      * @param time Time object to be converted.
      * @return Timestamp representing time
      */
-    public static Timestamp timestampOf(final ZonedDateTime time) {
+    public static Timestamp timestampOf(final ChronoZonedDateTime time) {
         return timestampOf(time.toInstant());
     }
 

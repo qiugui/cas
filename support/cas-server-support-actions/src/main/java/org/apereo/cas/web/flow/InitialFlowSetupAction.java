@@ -35,17 +35,17 @@ import java.util.List;
 public class InitialFlowSetupAction extends AbstractAction {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(InitialFlowSetupAction.class);
-    
+
     private final CasConfigurationProperties casProperties;
     private final ServicesManager servicesManager;
     private final CookieRetrievingCookieGenerator warnCookieGenerator;
     private final CookieRetrievingCookieGenerator ticketGrantingTicketCookieGenerator;
     private final List<ArgumentExtractor> argumentExtractors;
 
-    public InitialFlowSetupAction(final List<ArgumentExtractor> argumentExtractors, 
+    public InitialFlowSetupAction(final List<ArgumentExtractor> argumentExtractors,
                                   final ServicesManager servicesManager,
                                   final CookieRetrievingCookieGenerator ticketGrantingTicketCookieGenerator,
-                                  final CookieRetrievingCookieGenerator warnCookieGenerator, 
+                                  final CookieRetrievingCookieGenerator warnCookieGenerator,
                                   final CasConfigurationProperties casProperties) {
         this.argumentExtractors = argumentExtractors;
         this.servicesManager = servicesManager;
@@ -55,7 +55,7 @@ public class InitialFlowSetupAction extends AbstractAction {
     }
 
     @Override
-    protected Event doExecute(final RequestContext context) throws Exception {
+    protected Event doExecute(final RequestContext context) {
         configureCookieGenerators(context);
         configureWebflowContext(context);
         configureWebflowContextForService(context);
@@ -84,7 +84,7 @@ public class InitialFlowSetupAction extends AbstractAction {
             }
         } else if (!casProperties.getSso().isMissingService()) {
             LOGGER.warn("No service authentication request is available at [{}]. CAS is configured to disable the flow.",
-                    WebUtils.getHttpServletRequest(context).getRequestURL());
+                    WebUtils.getHttpServletRequestFromExternalWebflowContext(context).getRequestURL());
             throw new NoSuchFlowExecutionException(context.getFlowExecutionContext().getKey(),
                     new UnauthorizedServiceException("screen.service.required.message", "Service is required"));
         }
@@ -92,17 +92,15 @@ public class InitialFlowSetupAction extends AbstractAction {
     }
 
     private void configureWebflowContext(final RequestContext context) {
-        final HttpServletRequest request = WebUtils.getHttpServletRequest(context);
-        WebUtils.putTicketGrantingTicketInScopes(context,
-                this.ticketGrantingTicketCookieGenerator.retrieveCookieValue(request));
+        final HttpServletRequest request = WebUtils.getHttpServletRequestFromExternalWebflowContext(context);
+        WebUtils.putTicketGrantingTicketInScopes(context, this.ticketGrantingTicketCookieGenerator.retrieveCookieValue(request));
         WebUtils.putGoogleAnalyticsTrackingIdIntoFlowScope(context, casProperties.getGoogleAnalytics().getGoogleAnalyticsTrackingId());
-        WebUtils.putWarningCookie(context,
-                Boolean.valueOf(this.warnCookieGenerator.retrieveCookieValue(request)));
+        WebUtils.putWarningCookie(context, Boolean.valueOf(this.warnCookieGenerator.retrieveCookieValue(request)));
         WebUtils.putGeoLocationTrackingIntoFlowScope(context, casProperties.getEvents().isTrackGeolocation());
         WebUtils.putRecaptchaSiteKeyIntoFlowScope(context, casProperties.getGoogleRecaptcha().getSiteKey());
-        WebUtils.putStaticAuthenticationIntoFlowScope(context, 
+        WebUtils.putStaticAuthenticationIntoFlowScope(context,
                 StringUtils.isNotBlank(casProperties.getAuthn().getAccept().getUsers())
-                || StringUtils.isNotBlank(casProperties.getAuthn().getReject().getUsers()));
+                        || StringUtils.isNotBlank(casProperties.getAuthn().getReject().getUsers()));
         WebUtils.putPasswordManagementEnabled(context, casProperties.getAuthn().getPm().isEnabled());
         WebUtils.putRememberMeAuthenticationEnabled(context, casProperties.getTicket().getTgt().getRememberMe().isEnabled());
     }

@@ -1,9 +1,11 @@
 package org.apereo.cas.configuration.model.webapp;
 
-import org.apereo.cas.configuration.model.core.util.CryptographyProperties;
-import org.apereo.cas.configuration.support.Beans;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
+import org.apereo.cas.configuration.model.core.util.EncryptionRandomizedSigningJwtCryptographyProperties;
+import org.apereo.cas.configuration.support.RequiresModule;
+import org.apereo.cas.configuration.support.SpringResourceProperties;
+import org.springframework.boot.context.properties.NestedConfigurationProperty;
+
+import java.io.Serializable;
 
 /**
  * Configuration properties class for webflow.
@@ -11,18 +13,66 @@ import org.springframework.core.io.Resource;
  * @author Dmitriy Kopylenko
  * @since 5.0.0
  */
+@RequiresModule(name = "cas-server-core-webflow")
+public class WebflowProperties implements Serializable {
 
-public class WebflowProperties extends CryptographyProperties {
+    private static final long serialVersionUID = 4949978905279568311L;
+    /**
+     * Encryption/signing setting for webflow.
+     */
+    @NestedConfigurationProperty
+    private EncryptionRandomizedSigningJwtCryptographyProperties crypto = new EncryptionRandomizedSigningJwtCryptographyProperties();
 
+    /**
+     * Whether CAS should take control of all spring webflow modifications
+     * and dynamically alter views, states and actions.
+     */
     private boolean autoconfigure = true;
-    
-    private boolean refresh = true;
 
+    /**
+     * Whether webflow should remain in "live reload" mode, able to auto detect
+     * changes and react. This is useful if the location of the webflow is externalized
+     * and changes are done ad-hoc to the webflow to accommodate changes.
+     */
+    private boolean refresh;
+
+    /**
+     * Whether flow executions should redirect after they pause before rendering.
+     */
     private boolean alwaysPauseRedirect;
 
+    /**
+     * Whether flow executions redirect after they pause for transitions that remain in the same view state.
+     */
     private boolean redirectSameState;
 
-    private Session session = new Session();
+    /**
+     * Webflow session management settings.
+     */
+    @NestedConfigurationProperty
+    private WebflowSessionManagementProperties session = new WebflowSessionManagementProperties();
+
+    /**
+     * Path to groovy resource that may auto-configure the webflow context
+     * dynamically creating/removing states and actions.
+     */
+    private Groovy groovy = new Groovy();
+
+    public Groovy getGroovy() {
+        return groovy;
+    }
+
+    public void setGroovy(final Groovy groovy) {
+        this.groovy = groovy;
+    }
+
+    public EncryptionRandomizedSigningJwtCryptographyProperties getCrypto() {
+        return crypto;
+    }
+
+    public void setCrypto(final EncryptionRandomizedSigningJwtCryptographyProperties crypto) {
+        this.crypto = crypto;
+    }
 
     public boolean isAutoconfigure() {
         return autoconfigure;
@@ -56,59 +106,16 @@ public class WebflowProperties extends CryptographyProperties {
         this.redirectSameState = redirectSameState;
     }
 
-    public Session getSession() {
+    public WebflowSessionManagementProperties getSession() {
         return session;
     }
 
-    public void setSession(final Session session) {
+    public void setSession(final WebflowSessionManagementProperties session) {
         this.session = session;
     }
 
-    public static class Session {
-        private String lockTimeout = "PT30S";
-        private int maxConversations = 5;
-        private boolean compress;
-        private boolean storage;
-        private Resource hzLocation = new ClassPathResource("hazelcast.xml");
-
-        public long getLockTimeout() {
-            return Beans.newDuration(lockTimeout).getSeconds();
-        }
-
-        public void setLockTimeout(final String lockTimeout) {
-            this.lockTimeout = lockTimeout;
-        }
-
-        public int getMaxConversations() {
-            return maxConversations;
-        }
-
-        public void setMaxConversations(final int maxConversations) {
-            this.maxConversations = maxConversations;
-        }
-
-        public boolean isCompress() {
-            return compress;
-        }
-
-        public void setCompress(final boolean compress) {
-            this.compress = compress;
-        }
-
-        public boolean isStorage() {
-            return storage;
-        }
-
-        public void setStorage(final boolean storage) {
-            this.storage = storage;
-        }
-
-        public Resource getHzLocation() {
-            return hzLocation;
-        }
-
-        public void setHzLocation(final Resource hzLocation) {
-            this.hzLocation = hzLocation;
-        }
+    @RequiresModule(name = "cas-server-core-webflow", automated = true)
+    public static class Groovy extends SpringResourceProperties {
+        private static final long serialVersionUID = 8079027843747126083L;
     }
 }

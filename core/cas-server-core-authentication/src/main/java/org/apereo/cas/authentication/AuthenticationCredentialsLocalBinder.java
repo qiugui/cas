@@ -3,7 +3,7 @@ package org.apereo.cas.authentication;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.*;
 
 /**
  * ThreadLocal based holder for current set of credentials and/or authentication object for any current
@@ -11,10 +11,10 @@ import static java.util.stream.Collectors.joining;
  * components that are not tightly coupled with core CAS APIs, for example audit principal resolver component, etc.
  * <p>
  * The thread local state carried by this class should be set by core CAS components processing core authentication and
- * CAS protocol events e.g. <code>AbstractAuthenticationManager</code>, <code>CentralAuthenticationServiceImpl</code>, etc.
+ * CAS protocol events e.g. {@code AuthenticationManager}, {@code CentralAuthenticationService}, etc.
  * <p>
  * The clearing of this state at the end of a thread execution path is the responsibility
- * of <code>AuthenticationCredentialsLocalBinderClearingFilter</code>
+ * of {@code AuthenticationCredentialsLocalBinderClearingFilter}
  *
  * @author Dmitriy Kopylenko
  * @since 5.0.0
@@ -22,7 +22,7 @@ import static java.util.stream.Collectors.joining;
 public class AuthenticationCredentialsLocalBinder {
 
     private static final ThreadLocal<Authentication> CURRENT_AUTHENTICATION = new ThreadLocal<>();
-
+    private static final ThreadLocal<AuthenticationBuilder> CURRENT_AUTHENTICATION_BUILDER = new ThreadLocal<>();
     private static final ThreadLocal<String[]> CURRENT_CREDENTIAL_IDS = new ThreadLocal<>();
 
     protected AuthenticationCredentialsLocalBinder() {
@@ -47,6 +47,24 @@ public class AuthenticationCredentialsLocalBinder {
     }
 
     /**
+     * Bind Authentication to ThreadLocal.
+     *
+     * @param authentication the authentication
+     */
+    public static void bindCurrent(final Authentication authentication) {
+        CURRENT_AUTHENTICATION.set(authentication);
+    }
+
+    /**
+     * Bind AuthenticationBuilder to ThreadLocal.
+     *
+     * @param builder the authentication builder
+     */
+    public static void bindCurrent(final AuthenticationBuilder builder) {
+        CURRENT_AUTHENTICATION_BUILDER.set(builder);
+    }
+    
+    /**
      * Get credential ids from ThreadLocal.
      *
      * @return credential ids
@@ -65,12 +83,12 @@ public class AuthenticationCredentialsLocalBinder {
     }
 
     /**
-     * Bind Authentication to ThreadLocal.
+     * Get AuthenticationBuilder from ThreadLocal.
      *
-     * @param authentication the authentication
+     * @return authentication builder
      */
-    public static void bindCurrent(final Authentication authentication) {
-        CURRENT_AUTHENTICATION.set(authentication);
+    public static AuthenticationBuilder getCurrentAuthenticationBuilder() {
+        return CURRENT_AUTHENTICATION_BUILDER.get();
     }
 
     /**
@@ -88,5 +106,6 @@ public class AuthenticationCredentialsLocalBinder {
     public static void clear() {
         CURRENT_CREDENTIAL_IDS.remove();
         CURRENT_AUTHENTICATION.remove();
+        CURRENT_AUTHENTICATION_BUILDER.remove();
     }
 }

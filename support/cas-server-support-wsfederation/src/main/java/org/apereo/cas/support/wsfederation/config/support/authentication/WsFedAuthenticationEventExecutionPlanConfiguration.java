@@ -1,14 +1,12 @@
 package org.apereo.cas.support.wsfederation.config.support.authentication;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apereo.cas.authentication.AuthenticationEventExecutionPlan;
+import org.apereo.cas.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.authentication.AuthenticationHandler;
 import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
-import org.apereo.cas.authentication.principal.PrincipalResolver;
-import org.apereo.cas.config.support.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.configuration.CasConfigurationProperties;
-import org.apereo.cas.configuration.model.support.wsfed.WsFederationProperties;
+import org.apereo.cas.configuration.model.support.wsfed.WsFederationDelegationProperties;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.support.wsfederation.WsFederationAttributeMutator;
 import org.apereo.cas.support.wsfederation.WsFederationConfiguration;
@@ -24,15 +22,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ResourceLoader;
 
+import java.util.Collection;
+import java.util.HashSet;
+
 /**
  * This is {@link WsFedAuthenticationEventExecutionPlanConfiguration}.
  *
  * @author Misagh Moayyed
+ * @author Dmitriy Kopylenko
  * @since 5.1.0
  */
 @Configuration("wsfedAuthenticationEventExecutionPlanConfiguration")
 @EnableConfigurationProperties(CasConfigurationProperties.class)
-public class WsFedAuthenticationEventExecutionPlanConfiguration implements AuthenticationEventExecutionPlanConfigurer {
+public class WsFedAuthenticationEventExecutionPlanConfiguration {
 
     @Autowired
     @Qualifier("attributeRepository")
@@ -52,29 +54,15 @@ public class WsFedAuthenticationEventExecutionPlanConfiguration implements Authe
     @Autowired
     private CasConfigurationProperties casProperties;
 
-    @Bean
-    @RefreshScope
-    public AuthenticationHandler adfsAuthNHandler() {
-        final WsFederationProperties wsfed = casProperties.getAuthn().getWsfed();
-        final WsFederationAuthenticationHandler h = new WsFederationAuthenticationHandler();
-        h.setPrincipalFactory(adfsPrincipalFactory());
-        h.setServicesManager(servicesManager);
-        h.setName(wsfed.getName());
-        return h;
-    }
-
-    @Bean
-    @RefreshScope
-    public WsFederationConfiguration wsFedConfig() {
+    private WsFederationConfiguration getWsFederationConfiguration(final WsFederationDelegationProperties wsfed) {
         final WsFederationConfiguration config = new WsFederationConfiguration();
-        final WsFederationProperties wsfed = casProperties.getAuthn().getWsfed();
         config.setAttributesType(WsFederationConfiguration.WsFedPrincipalResolutionAttributesType.valueOf(wsfed.getAttributesType()));
         config.setIdentityAttribute(wsfed.getIdentityAttribute());
         config.setIdentityProviderIdentifier(wsfed.getIdentityProviderIdentifier());
         config.setIdentityProviderUrl(wsfed.getIdentityProviderUrl());
         config.setTolerance(wsfed.getTolerance());
         config.setRelyingPartyIdentifier(wsfed.getRelyingPartyIdentifier());
-        
+
         org.springframework.util.StringUtils.commaDelimitedListToSet(wsfed.getSigningCertificateResources())
                 .forEach(s -> config.getSigningCertificateResources().add(this.resourceLoader.getResource(s)));
 
@@ -86,38 +74,52 @@ public class WsFedAuthenticationEventExecutionPlanConfiguration implements Authe
 
         config.setEncryptionPrivateKeyPassword(wsfed.getEncryptionPrivateKeyPassword());
         config.setAttributeMutator(this.attributeMutator);
+        config.setAutoRedirect(wsfed.isAutoRedirect());
+        config.setName(wsfed.getName());
+        config.initialize();
+
         return config;
     }
 
+    @ConditionalOnMissingBean(name = "wsFederationConfigurations")
     @Bean
     @RefreshScope
-    public PrincipalResolver adfsPrincipalResolver() {
-        final WsFederationProperties wsfed = casProperties.getAuthn().getWsfed();
-        final WsFederationCredentialsToPrincipalResolver r = new WsFederationCredentialsToPrincipalResolver();
-        r.setConfiguration(wsFedConfig());
-        r.setAttributeRepository(attributeRepository);
-        r.setPrincipalAttributeName(wsfed.getPrincipal().getPrincipalAttribute());
-        r.setReturnNullIfNoAttributes(wsfed.getPrincipal().isReturnNull());
-        r.setPrincipalFactory(adfsPrincipalFactory());
-        return r;
+    public Collection<WsFederationConfiguration> wsFederationConfigurations() {
+        final Collection<WsFederationConfiguration> col = new HashSet<>();
+        casProperties.getAuthn().getWsfed().forEach(wsfed -> {
+            final WsFederationConfiguration cfg = getWsFederationConfiguration(wsfed);
+            col.add(cfg);
+        });
+        return col;
     }
+
 
     @ConditionalOnMissingBean(name = "adfsPrincipalFactory")
     @Bean
+    @RefreshScope
     public PrincipalFactory adfsPrincipalFactory() {
         return new DefaultPrincipalFactory();
     }
 
-    @Override
-    public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
-        final WsFederationProperties wsfed = casProperties.getAuthn().getWsfed();
-        if (StringUtils.isNotBlank(wsfed.getIdentityProviderUrl()) && StringUtils.isNotBlank(wsfed.getIdentityProviderIdentifier())) {
-
-            if (!wsfed.isAttributeResolverEnabled()) {
-                plan.registerAuthenticationHandler(adfsAuthNHandler());
-            } else {
-                plan.registerAuthenticationHandlerWithPrincipalResolver(adfsAuthNHandler(), adfsPrincipalResolver());
-            }
-        }
+    @ConditionalOnMissingBean(name = "wsfedAuthenticationEventExecutionPlanConfigurer")
+    @Bean
+    public AuthenticationEventExecutionPlanConfigurer wsfedAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> casProperties.getAuthn().getWsfed()
+                .stream()
+                .filter(wsfed -> StringUtils.isNotBlank(wsfed.getIdentityProviderUrl())
+                        && StringUtils.isNotBlank(wsfed.getIdentityProviderIdentifier()))
+                .forEach(wsfed -> {
+                    final AuthenticationHandler handler =
+                            new WsFederationAuthenticationHandler(wsfed.getName(), servicesManager, adfsPrincipalFactory());
+                    if (!wsfed.isAttributeResolverEnabled()) {
+                        plan.registerAuthenticationHandler(handler);
+                    } else {
+                        final WsFederationCredentialsToPrincipalResolver r =
+                                new WsFederationCredentialsToPrincipalResolver(attributeRepository, adfsPrincipalFactory(),
+                                        wsfed.getPrincipal().isReturnNull(), wsfed.getPrincipal().getPrincipalAttribute(),
+                                        getWsFederationConfiguration(wsfed));
+                        plan.registerAuthenticationHandlerWithPrincipalResolver(handler, r);
+                    }
+                });
     }
 }

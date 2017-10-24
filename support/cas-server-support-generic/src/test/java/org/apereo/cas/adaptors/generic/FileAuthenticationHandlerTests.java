@@ -4,8 +4,8 @@ import org.apereo.cas.authentication.CoreAuthenticationTestUtils;
 import org.apereo.cas.authentication.HttpBasedServiceCredential;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.UsernamePasswordCredential;
+import org.apereo.cas.authentication.support.password.PasswordEncoderUtils;
 import org.apereo.cas.configuration.model.core.authentication.PasswordEncoderProperties;
-import org.apereo.cas.configuration.support.Beans;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,13 +32,13 @@ public class FileAuthenticationHandlerTests {
 
     @Before
     public void setUp() throws Exception {
-        this.authenticationHandler = new FileAuthenticationHandler(new ClassPathResource("authentication.txt"),
+        this.authenticationHandler = new FileAuthenticationHandler("", null, null, new ClassPathResource("authentication.txt"),
                 FileAuthenticationHandler.DEFAULT_SEPARATOR);
         final PasswordEncoderProperties p = new PasswordEncoderProperties();
         p.setType(PasswordEncoderProperties.PasswordEncoderTypes.DEFAULT.name());
         p.setEncodingAlgorithm("MD5");
         p.setCharacterEncoding("UTF-8");
-        this.authenticationHandler.setPasswordEncoder(Beans.newPasswordEncoder(p));
+        this.authenticationHandler.setPasswordEncoder(PasswordEncoderUtils.newPasswordEncoder(p));
     }
 
     @Test
@@ -114,7 +114,7 @@ public class FileAuthenticationHandlerTests {
     @Test
     public void verifyAuthenticatesUserInFileWithCommaSeparator() throws Exception {
         final UsernamePasswordCredential c = new UsernamePasswordCredential();
-        this.authenticationHandler = new FileAuthenticationHandler(new ClassPathResource("authentication2.txt"), ",");
+        this.authenticationHandler = new FileAuthenticationHandler("", null, null, new ClassPathResource("authentication2.txt"), ",");
         c.setUsername("scott");
         c.setPassword("rutgers");
         assertNotNull(this.authenticationHandler.authenticate(c));
@@ -124,7 +124,7 @@ public class FileAuthenticationHandlerTests {
     public void verifyFailsUserNotInFileWithCommaSeparator() throws Exception {
         final UsernamePasswordCredential c = new UsernamePasswordCredential();
 
-        this.authenticationHandler = new FileAuthenticationHandler(new ClassPathResource("authentication2.txt"), ",");
+        this.authenticationHandler = new FileAuthenticationHandler("", null, null, new ClassPathResource("authentication2.txt"), ",");
         c.setUsername("fds");
         c.setPassword("rutgers");
         this.thrown.expect(AccountNotFoundException.class);
@@ -135,7 +135,7 @@ public class FileAuthenticationHandlerTests {
     @Test
     public void verifyFailsGoodUsernameBadPassword() throws Exception {
         final UsernamePasswordCredential c = new UsernamePasswordCredential();
-        this.authenticationHandler = new FileAuthenticationHandler(new ClassPathResource("authentication2.txt"), ",");
+        this.authenticationHandler = new FileAuthenticationHandler("", null, null, new ClassPathResource("authentication2.txt"), ",");
 
         c.setUsername("scott");
         c.setPassword("rutgers1");
@@ -148,7 +148,7 @@ public class FileAuthenticationHandlerTests {
     @Test
     public void verifyAuthenticateNoFileName() throws Exception {
         final UsernamePasswordCredential c = new UsernamePasswordCredential();
-        this.authenticationHandler = new FileAuthenticationHandler(new ClassPathResource("fff"), FileAuthenticationHandler.DEFAULT_SEPARATOR);
+        this.authenticationHandler = new FileAuthenticationHandler("", null, null, new ClassPathResource("fff"), FileAuthenticationHandler.DEFAULT_SEPARATOR);
 
         c.setUsername("scott");
         c.setPassword("rutgers");

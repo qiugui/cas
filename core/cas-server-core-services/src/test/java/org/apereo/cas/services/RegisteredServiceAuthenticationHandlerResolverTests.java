@@ -6,15 +6,17 @@ import org.apereo.cas.authentication.AuthenticationTransaction;
 import org.apereo.cas.authentication.RegisteredServiceAuthenticationHandlerResolver;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 /**
  * This is {@link RegisteredServiceAuthenticationHandlerResolverTests}.
@@ -37,22 +39,19 @@ public class RegisteredServiceAuthenticationHandlerResolverTests {
         list.add(svc);
 
         svc = RegisteredServiceTestUtils.getRegisteredService("serviceid2");
-        svc.setRequiredHandlers(Collections.emptySet());
+        svc.setRequiredHandlers(new HashSet<>(0));
         list.add(svc);
 
         dao.setRegisteredServices(list);
 
-        this.defaultServicesManager = new DefaultServicesManager(dao);
+        this.defaultServicesManager = new DefaultServicesManager(dao, mock(ApplicationEventPublisher.class));
         this.defaultServicesManager.load();
 
-        final AcceptUsersAuthenticationHandler handler1 = new AcceptUsersAuthenticationHandler();
-        handler1.setName("handler1");
+        final AcceptUsersAuthenticationHandler handler1 = new AcceptUsersAuthenticationHandler("handler1");
 
-        final AcceptUsersAuthenticationHandler handler2 = new AcceptUsersAuthenticationHandler();
-        handler2.setName("handler2");
+        final AcceptUsersAuthenticationHandler handler2 = new AcceptUsersAuthenticationHandler("handler2");
 
-        final AcceptUsersAuthenticationHandler handler3 = new AcceptUsersAuthenticationHandler();
-        handler3.setName("handler3");
+        final AcceptUsersAuthenticationHandler handler3 = new AcceptUsersAuthenticationHandler("handler3");
 
         this.handlers = Stream.of(handler1, handler2, handler3).collect(Collectors.toSet());
     }

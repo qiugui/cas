@@ -3,6 +3,7 @@ package org.apereo.cas.web.view;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.CasProtocolConstants;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.ProtocolAttributeEncoder;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.services.RegisteredService;
@@ -15,8 +16,8 @@ import org.springframework.web.servlet.View;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,8 +40,9 @@ public class Cas30ResponseView extends Cas20ResponseView {
                              final ServicesManager servicesManager,
                              final String authenticationContextAttribute,
                              final View view,
-                             final boolean releaseProtocolAttributes) {
-        super(successResponse, protocolAttributeEncoder, servicesManager, authenticationContextAttribute, view);
+                             final boolean releaseProtocolAttributes,
+                             final AuthenticationServiceSelectionPlan serviceSelectionStrategy) {
+        super(successResponse, protocolAttributeEncoder, servicesManager, authenticationContextAttribute, view, serviceSelectionStrategy);
         this.releaseProtocolAttributes = releaseProtocolAttributes;
     }
 
@@ -49,7 +51,7 @@ public class Cas30ResponseView extends Cas20ResponseView {
                                             final HttpServletResponse response) throws Exception {
         super.prepareMergedOutputModel(model, request, response);
 
-        final Service service = super.getServiceFrom(model);
+        final Service service = authenticationRequestServiceSelectionStrategies.resolveService(getServiceFrom(model));
         final RegisteredService registeredService = this.servicesManager.findServiceBy(service);
 
         final Map<String, Object> attributes = new HashMap<>();
@@ -82,18 +84,22 @@ public class Cas30ResponseView extends Cas20ResponseView {
     protected Map<String, Object> getCasProtocolAuthenticationAttributes(final Map<String, Object> model,
                                                                          final RegisteredService registeredService) {
 
+        if (!registeredService.getAttributeReleasePolicy().isAuthorizedToReleaseAuthenticationAttributes()) {
+            LOGGER.debug("Attribute release policy for service [{}] is configured to never release any attributes", registeredService);
+            return new LinkedHashMap<>();
+        }
+        
         final Map<String, Object> filteredAuthenticationAttributes = new HashMap<>(getAuthenticationAttributes(model));
-
         filteredAuthenticationAttributes.put(CasProtocolConstants.VALIDATION_CAS_MODEL_ATTRIBUTE_NAME_AUTHENTICATION_DATE,
-                Collections.singleton(getAuthenticationDate(model)));
+                CollectionUtils.wrap(getAuthenticationDate(model)));
         filteredAuthenticationAttributes.put(CasProtocolConstants.VALIDATION_CAS_MODEL_ATTRIBUTE_NAME_FROM_NEW_LOGIN,
-                Collections.singleton(isAssertionBackedByNewLogin(model)));
+                CollectionUtils.wrap(isAssertionBackedByNewLogin(model)));
         filteredAuthenticationAttributes.put(CasProtocolConstants.VALIDATION_REMEMBER_ME_ATTRIBUTE_NAME,
-                Collections.singleton(isRememberMeAuthentication(model)));
+                CollectionUtils.wrap(isRememberMeAuthentication(model)));
 
         final String contextProvider = getSatisfiedMultifactorAuthenticationProviderId(model);
         if (StringUtils.isNotBlank(contextProvider) && StringUtils.isNotBlank(authenticationContextAttribute)) {
-            filteredAuthenticationAttributes.put(this.authenticationContextAttribute, Collections.singleton(contextProvider));
+            filteredAuthenticationAttributes.put(this.authenticationContextAttribute, CollectionUtils.wrap(contextProvider));
         }        
         return filteredAuthenticationAttributes;
     }

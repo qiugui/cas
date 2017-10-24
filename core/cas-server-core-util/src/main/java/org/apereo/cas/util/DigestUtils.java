@@ -1,9 +1,11 @@
 package org.apereo.cas.util;
 
 import org.apache.commons.codec.digest.MessageDigestAlgorithms;
+import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 
 /**
  * This is {@link DigestUtils}
@@ -14,6 +16,8 @@ import java.security.MessageDigest;
  * @since 5.0.0
  */
 public final class DigestUtils {
+    private static final int ABBREVIATE_MAX_WIDTH = 125;
+    
     private DigestUtils() {
     }
 
@@ -58,6 +62,30 @@ public final class DigestUtils {
     }
 
     /**
+     * Sha base 64 string.
+     *
+     * @param salt the salt
+     * @param data the data
+     * @return the string
+     */
+    public static String shaBase64(final String salt, final String data) {
+        return shaBase64(salt, data, null);
+    }
+
+    /**
+     * Sha base 64 string.
+     *
+     * @param salt the salt
+     * @param data the data
+     * @param separator a string separator, if any
+     * @return the string
+     */
+    public static String shaBase64(final String salt, final String data, final String separator) {
+        final byte[] result = rawDigest(MessageDigestAlgorithms.SHA_1, salt, separator == null ? data : data + separator);
+        return EncodingUtils.encodeBase64(result);
+    }
+    
+    /**
      * Computes hex encoded digest.
      *
      * @param alg  Digest algorithm to use
@@ -88,12 +116,45 @@ public final class DigestUtils {
      */
     public static byte[] rawDigest(final String alg, final byte[] data) {
         try {
-            final MessageDigest digest = MessageDigest.getInstance(alg);
-            digest.reset();
+            final MessageDigest digest = getMessageDigestInstance(alg);
             return digest.digest(data);
         } catch (final Exception cause) {
             throw new SecurityException(cause);
         }
     }
 
+    
+    /**
+     * Raw digest byte [ ].
+     *
+     * @param alg  the alg
+     * @param salt the salt
+     * @param data the data
+     * @return the byte [ ]
+     */
+    public static byte[] rawDigest(final String alg, final String salt, final String... data) {
+        try {
+            final MessageDigest digest = getMessageDigestInstance(alg);
+            Arrays.stream(data).forEach(d -> digest.update(d.getBytes()));
+            return digest.digest(salt.getBytes(StandardCharsets.UTF_8));
+        } catch (final Exception cause) {
+            throw new SecurityException(cause);
+        }
+    }
+
+    /**
+     * Abbreviate string.
+     *
+     * @param str the str
+     * @return the string
+     */
+    public static String abbreviate(final String str) {
+        return StringUtils.abbreviate(str, ABBREVIATE_MAX_WIDTH);
+    }
+    
+    private static MessageDigest getMessageDigestInstance(final String alg) throws Exception {
+        final MessageDigest digest = MessageDigest.getInstance(alg);
+        digest.reset();
+        return digest;
+    }
 }

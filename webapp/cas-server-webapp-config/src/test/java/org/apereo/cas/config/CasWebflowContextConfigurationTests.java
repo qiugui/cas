@@ -64,7 +64,7 @@ import static org.junit.Assert.*;
                 CasDefaultServiceTicketIdGeneratorsConfiguration.class,
                 CasWebApplicationServiceFactoryConfiguration.class,
                 CasCoreWebflowConfiguration.class,
-                CasCoreAuthenticationConfiguration.class,
+                CasCoreAuthenticationConfiguration.class, CasCoreServicesAuthenticationConfiguration.class,
                 CasCoreAuthenticationPrincipalConfiguration.class,
                 CasCoreAuthenticationPolicyConfiguration.class,
                 CasCoreAuthenticationMetadataConfiguration.class,
@@ -72,6 +72,7 @@ import static org.junit.Assert.*;
                 CasCoreAuthenticationHandlersConfiguration.class,
                 CasCoreHttpConfiguration.class,
                 CasCoreTicketsConfiguration.class,
+                CasCoreTicketCatalogConfiguration.class,
                 CasThemesConfiguration.class,
                 CasLoggingConfiguration.class,
                 CasCoreServicesConfiguration.class,
@@ -82,6 +83,7 @@ import static org.junit.Assert.*;
                 CasCoreWebConfiguration.class,
                 CasCoreValidationConfiguration.class,
                 CasCoreConfiguration.class,
+                CasCoreAuthenticationServiceSelectionStrategyConfiguration.class,
                 CasCoreAuditConfiguration.class,
                 CasPersonDirectoryConfiguration.class,
                 ThymeleafAutoConfiguration.class,
@@ -134,15 +136,19 @@ public class CasWebflowContextConfigurationTests {
 
     @Configuration("testWebflowContextConfiguration")
     public static class TestWebflowContextConfiguration {
+
+        private static final String TEST = "test";
+
         @Bean
         public Action testWebflowSerialization() {
+            //CHECKSTYLE:OFF
             return new AbstractAction() {
                 @Override
                 protected Event doExecute(final RequestContext requestContext) throws Exception {
-                    requestContext.getFlowScope().put("test0", Collections.singleton("test"));
-                    requestContext.getFlowScope().put("test1", Collections.singletonList("test"));
-                    requestContext.getFlowScope().put("test2", Collections.singletonMap("test", "test"));
-                    requestContext.getFlowScope().put("test3", Arrays.asList("test", "test"));
+                    requestContext.getFlowScope().put("test0", Collections.singleton(TEST));
+                    requestContext.getFlowScope().put("test1", Collections.singletonList(TEST));
+                    requestContext.getFlowScope().put("test2", Collections.singletonMap(TEST, TEST));
+                    requestContext.getFlowScope().put("test3", Arrays.asList(TEST, TEST));
                     requestContext.getFlowScope().put("test4", new ConcurrentSkipListSet());
                     requestContext.getFlowScope().put("test5", Collections.unmodifiableList(Arrays.asList("test1")));
                     requestContext.getFlowScope().put("test6", Collections.unmodifiableSet(Collections.singleton(1)));
@@ -150,9 +156,11 @@ public class CasWebflowContextConfigurationTests {
                     requestContext.getFlowScope().put("test8", Collections.emptyMap());
                     requestContext.getFlowScope().put("test9", new TreeMap<>());
                     requestContext.getFlowScope().put("test10", Collections.emptySet());
+                    requestContext.getFlowScope().put("test11", Collections.emptyList());
                     return success();
                 }
             };
+            //CHECKSTYLE:ON
         }
     }
 }

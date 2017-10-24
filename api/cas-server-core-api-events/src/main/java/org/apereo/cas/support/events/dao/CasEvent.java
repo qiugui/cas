@@ -4,6 +4,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apereo.cas.authentication.adaptive.geo.GeoLocationRequest;
 import org.apereo.cas.util.DateTimeUtils;
+import org.hibernate.annotations.GenericGenerator;
 
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
@@ -31,9 +32,11 @@ import java.util.Map;
 @Table(name = "CasEvent")
 public class CasEvent {
 
+    @org.springframework.data.annotation.Id
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private long id = Integer.MAX_VALUE;
+    @GeneratedValue(strategy = GenerationType.AUTO, generator = "native")
+    @GenericGenerator(name = "native", strategy = "native")
+    private long id = -1;
 
     @Column(length = 255, updatable = true, insertable = true, nullable = false)
     private String type;
@@ -41,12 +44,22 @@ public class CasEvent {
     @Column(length = 255, updatable = true, insertable = true, nullable = false)
     private String principalId;
 
+    @Column(length = 255, updatable = true, insertable = true, nullable = false)
+    private String creationTime;
+    
     @ElementCollection
     @MapKeyColumn(name = "name")
     @Column(name = "value")
     @CollectionTable(name = "events_properties", joinColumns = @JoinColumn(name = "id"))
     private Map<String, String> properties = new HashMap<>();
 
+    /**
+     * Instantiates a new Cas event.
+     */
+    public CasEvent() {
+        this.id = System.currentTimeMillis();
+    }
+    
     public void setType(final String type) {
         this.type = type;
     }
@@ -58,9 +71,35 @@ public class CasEvent {
     public String getType() {
         return this.type;
     }
+    
+    /**
+     * Gets creation time. Attempts to parse the value
+     * as a {@link ZonedDateTime}. Otherwise, assumes a
+     * {@link LocalDateTime} and converts it based on system's
+     * default zone.
+     *
+     * @return the creation time
+     */
+    public ZonedDateTime getCreationTime() {
+        final ZonedDateTime dt = DateTimeUtils.zonedDateTimeOf(this.creationTime);
+        if (dt != null) {
+            return dt;
+        }
+        final LocalDateTime lt = DateTimeUtils.localDateTimeOf(this.creationTime);
+        return DateTimeUtils.zonedDateTimeOf(lt.atZone(ZoneId.systemDefault()));
+    }
 
     public Map<String, String> getProperties() {
         return this.properties;
+    }
+
+    /**
+     * Set creation time.
+     *
+     * @param time the time
+     */
+    public void setCreationTime(final Object time) {
+        this.creationTime = time.toString();
     }
 
     /**
@@ -73,21 +112,16 @@ public class CasEvent {
     }
 
     /**
-     * Put creation time.
-     *
-     * @param time the time
-     */
-    public void putCreationTime(final Object time) {
-        put("creationTime", time.toString());
-    }
-
-    /**
      * Put id.
      *
      * @param id the id
      */
     public void putId(final String id) {
         put("id", id);
+    }
+
+    public void setId(final long id) {
+        this.id = id;
     }
 
     /**
@@ -115,23 +149,6 @@ public class CasEvent {
      */
     public void putAgent(final String dev) {
         put("agent", dev);
-    }
-
-    /**
-     * Gets creation time. Attempts to parse the value
-     * as a {@link ZonedDateTime}. Otherwise, assumes a
-     * {@link LocalDateTime} and converts it based on system's
-     * default zone.
-     *
-     * @return the creation time
-     */
-    public ZonedDateTime getCreationTime() {
-        final ZonedDateTime dt = DateTimeUtils.zonedDateTimeOf(get("creationTime"));
-        if (dt != null) {
-            return dt;
-        }
-        final LocalDateTime lt = DateTimeUtils.localDateTimeOf(get("creationTime"));
-        return DateTimeUtils.zonedDateTimeOf(lt.atZone(ZoneId.systemDefault()));
     }
 
     public Long getTimestamp() {

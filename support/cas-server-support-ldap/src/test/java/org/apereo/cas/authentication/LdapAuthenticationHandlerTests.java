@@ -8,7 +8,12 @@ import org.apereo.cas.config.CasCoreAuthenticationPolicyConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationPrincipalConfiguration;
 import org.apereo.cas.config.CasCoreAuthenticationSupportConfiguration;
 import org.apereo.cas.config.CasCoreHttpConfiguration;
+import org.apereo.cas.config.CasCoreServicesAuthenticationConfiguration;
 import org.apereo.cas.config.CasCoreServicesConfiguration;
+import org.apereo.cas.config.CasCoreTicketCatalogConfiguration;
+import org.apereo.cas.config.CasCoreTicketsConfiguration;
+import org.apereo.cas.config.CasCoreUtilConfiguration;
+import org.apereo.cas.config.CasCoreWebConfiguration;
 import org.apereo.cas.config.CasPersonDirectoryConfiguration;
 import org.apereo.cas.config.LdapAuthenticationConfiguration;
 import org.apereo.cas.config.support.CasWebApplicationServiceFactoryConfiguration;
@@ -31,6 +36,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import javax.security.auth.login.AccountNotFoundException;
 import javax.security.auth.login.FailedLoginException;
 import java.util.Collection;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -50,8 +56,14 @@ import static org.junit.Assert.*;
         CasCoreAuthenticationHandlersConfiguration.class,
         CasWebApplicationServiceFactoryConfiguration.class,
         CasCoreHttpConfiguration.class,
+        CasCoreUtilConfiguration.class,
+        CasCoreTicketCatalogConfiguration.class,
+        CasCoreTicketsConfiguration.class,
         CasPersonDirectoryConfiguration.class,
         CasCoreAuthenticationConfiguration.class,
+        CasCoreWebConfiguration.class,
+        CasWebApplicationServiceFactoryConfiguration.class,
+        CasCoreServicesAuthenticationConfiguration.class,
         CasCoreServicesConfiguration.class,
         LdapAuthenticationConfiguration.class})
 @TestPropertySource(locations = {"classpath:/ldap.properties"})
@@ -67,7 +79,7 @@ public class LdapAuthenticationHandlerTests extends AbstractLdapTests {
     @BeforeClass
     public static void bootstrap() throws Exception {
         LOGGER.debug("Running [{}]", LdapAuthenticationHandlerTests.class.getSimpleName());
-        initDirectoryServer();
+        initDirectoryServer(1380);
     }
 
     @AfterClass
@@ -86,12 +98,9 @@ public class LdapAuthenticationHandlerTests extends AbstractLdapTests {
                 final HandlerResult result = h.authenticate(new UsernamePasswordCredential(username, psw));
                 assertNotNull(result.getPrincipal());
                 assertEquals(username, result.getPrincipal().getId());
-                assertEquals(
-                        entry.getAttribute("displayName").getStringValue(),
-                        result.getPrincipal().getAttributes().get("displayName"));
-                assertEquals(
-                        entry.getAttribute("mail").getStringValue(),
-                        result.getPrincipal().getAttributes().get("mail"));
+                final Map<String, Object> attributes = result.getPrincipal().getAttributes();
+                assertTrue(attributes.containsKey("displayName"));
+                assertTrue(attributes.containsKey("mail"));
             }));
         });
     }
@@ -103,9 +112,8 @@ public class LdapAuthenticationHandlerTests extends AbstractLdapTests {
         try {
             this.getEntries().stream()
                     .map(entry -> entry.getAttribute("sAMAccountName").getStringValue())
-                    .forEach(username -> this.handler.forEach(Unchecked.consumer(h -> {
-                        h.authenticate(new UsernamePasswordCredential(username, "badpassword"));
-                    })));
+                    .forEach(username -> this.handler.forEach(
+                            Unchecked.consumer(h -> h.authenticate(new UsernamePasswordCredential(username, "bad")))));
         } catch (final Exception e) {
             throw e.getCause();
         }
@@ -115,9 +123,7 @@ public class LdapAuthenticationHandlerTests extends AbstractLdapTests {
     public void verifyAuthenticateNotFound() throws Throwable {
         try {
             this.thrown.expect(AccountNotFoundException.class);
-            this.handler.forEach(Unchecked.consumer(h -> {
-                h.authenticate(new UsernamePasswordCredential("notfound", "badpassword"));
-            }));
+            this.handler.forEach(Unchecked.consumer(h -> h.authenticate(new UsernamePasswordCredential("notfound", "badpassword"))));
         } catch (final Exception e) {
             throw e.getCause();
         }

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public abstract class BaseInMemoryOneTimeTokenCredentialRepository extends BaseOneTimeTokenCredentialRepository {
 
-    private Map<String, OneTimeTokenAccount> accounts;
+    private final Map<String, OneTimeTokenAccount> accounts;
 
     /**
      * Instantiates a new In memory google authenticator account registry.
@@ -22,9 +22,9 @@ public abstract class BaseInMemoryOneTimeTokenCredentialRepository extends BaseO
     }
 
     @Override
-    public String getSecret(final String userName) {
+    public OneTimeTokenAccount get(final String userName) {
         if (contains(userName)) {
-            return this.accounts.get(userName).getSecretKey();
+            return this.accounts.get(userName);
         }
         return null;
     }

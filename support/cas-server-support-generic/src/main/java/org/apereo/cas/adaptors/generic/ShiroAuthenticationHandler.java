@@ -1,6 +1,5 @@
 package org.apereo.cas.adaptors.generic;
 
-import com.google.common.base.Throwables;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.DisabledAccountException;
@@ -14,13 +13,15 @@ import org.apache.shiro.config.IniSecurityManagerFactory;
 import org.apache.shiro.mgt.SecurityManager;
 import org.apache.shiro.subject.Subject;
 import org.apache.shiro.util.Factory;
-import org.apereo.cas.authentication.exceptions.AccountDisabledException;
 import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.RememberMeUsernamePasswordCredential;
 import org.apereo.cas.authentication.UsernamePasswordCredential;
+import org.apereo.cas.authentication.exceptions.AccountDisabledException;
 import org.apereo.cas.authentication.handler.support.AbstractUsernamePasswordAuthenticationHandler;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.util.ResourceUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +46,9 @@ public class ShiroAuthenticationHandler extends AbstractUsernamePasswordAuthenti
     private final Set<String> requiredRoles;
     private final Set<String> requiredPermissions;
 
-    public ShiroAuthenticationHandler(final Set<String> requiredRoles, final Set<String> requiredPermissions) {
+    public ShiroAuthenticationHandler(final String name, final ServicesManager servicesManager, final PrincipalFactory principalFactory,
+                                      final Set<String> requiredRoles, final Set<String> requiredPermissions) {
+        super(name, servicesManager, principalFactory, null);
         this.requiredRoles = requiredRoles;
         this.requiredPermissions = requiredPermissions;
     }
@@ -148,7 +151,7 @@ public class ShiroAuthenticationHandler extends AbstractUsernamePasswordAuthenti
                 LOGGER.debug("Shiro configuration is not defined");
             }
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 }

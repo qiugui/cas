@@ -3,7 +3,7 @@ package org.apereo.cas.impl.calcs;
 import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.services.RegisteredService;
 import org.apereo.cas.support.events.dao.CasEvent;
-import org.apereo.cas.support.events.dao.CasEventRepository;
+import org.apereo.cas.support.events.CasEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,9 +34,12 @@ public class DateTimeAuthenticationRequestRiskCalculator extends BaseAuthenticat
         final ZonedDateTime timestamp = ZonedDateTime.now();
         LOGGER.debug("Filtering authentication events for timestamp [{}]", timestamp);
 
-        final long count = events.stream().filter(e -> e.getCreationTime().getHour() == timestamp.getHour()
-                || e.getCreationTime().plusHours(windowInHours).getHour() == timestamp.getHour()
-                || e.getCreationTime().minusHours(windowInHours).getHour() == timestamp.getHour()).count();
+        final long count = events.stream().filter(e -> {
+            final int hour = timestamp.getHour();
+            return e.getCreationTime().getHour() == hour
+                    || e.getCreationTime().plusHours(windowInHours).getHour() == hour
+                    || e.getCreationTime().minusHours(windowInHours).getHour() == hour;
+        }).count();
         
         LOGGER.debug("Total authentication events found for [{}]: [{}]", timestamp, count);
         if (count == events.size()) {

@@ -1,9 +1,9 @@
 package org.apereo.cas.web.report;
 
-import com.google.common.base.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.FileAppender;
@@ -12,19 +12,21 @@ import org.apache.logging.log4j.core.appender.RandomAccessFileAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.RollingRandomAccessFileAppender;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.slf4j.Log4jLoggerFactory;
 import org.apereo.cas.audit.spi.DelegatingAuditTrailManager;
+import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.web.BaseCasMvcEndpoint;
+import org.apereo.cas.web.report.util.ControllerUtils;
 import org.apereo.inspektr.audit.AuditActionContext;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.endpoint.mvc.AbstractNamedMvcEndpoint;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -47,9 +49,12 @@ import java.util.Set;
  * @author Misagh Moayyed
  * @since 4.2
  */
-public class LoggingConfigController extends AbstractNamedMvcEndpoint {
+public class LoggingConfigController extends BaseCasMvcEndpoint {
+
     private static final String VIEW_CONFIG = "monitoring/viewLoggingConfig";
     private static final String LOGGER_NAME_ROOT = "root";
+    private static final String FILE_PARAM = "file";
+    private static final String FILE_PATTERN_PARAM = "filePattern";
 
     private LoggerContext loggerContext;
 
@@ -63,8 +68,8 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
 
     private Resource logConfigurationFile;
 
-    public LoggingConfigController(final DelegatingAuditTrailManager auditTrailManager) {
-        super("casloggingconfig", "/logging", true, true);
+    public LoggingConfigController(final DelegatingAuditTrailManager auditTrailManager, final CasConfigurationProperties casProperties) {
+        super("casloggingconfig", "/logging", casProperties.getMonitor().getEndpoints().getLoggingConfig(), casProperties);
         this.auditTrailManager = auditTrailManager;
     }
 
@@ -75,25 +80,26 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
      */
     @PostConstruct
     public void initialize() {
-        try {
-            final String logFile = environment.getProperty("logging.config");
-            this.logConfigurationFile = this.resourceLoader.getResource(logFile);
-
-            this.loggerContext = Configurator.initialize("CAS", null, this.logConfigurationFile.getURI());
-            this.loggerContext.getConfiguration().addListener(reconfigurable -> loggerContext.updateLoggers(reconfigurable.reconfigure()));
-        } catch (final Exception e) {
-            throw Throwables.propagate(e);
+        final Pair<Resource, LoggerContext> pair = ControllerUtils.buildLoggerContext(environment, resourceLoader);
+        if (pair != null) {
+            this.logConfigurationFile = pair.getKey();
+            this.loggerContext = pair.getValue();
         }
     }
 
     /**
      * Gets default view.
      *
+     * @param request  the request
+     * @param response the response
      * @return the default view
      * @throws Exception the exception
      */
     @GetMapping
-    public ModelAndView getDefaultView() throws Exception {
+    public ModelAndView getDefaultView(final HttpServletRequest request,
+                                       final HttpServletResponse response) throws Exception {
+        ensureEndpointAccessIsAuthorized(request, response);
+
         final Map<String, Object> model = new HashMap<>();
         model.put("logConfigurationFile", logConfigurationFile.getURI().toString());
         return new ModelAndView(VIEW_CONFIG, model);
@@ -110,6 +116,10 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
     @GetMapping(value = "/getActiveLoggers")
     @ResponseBody
     public Map<String, Object> getActiveLoggers(final HttpServletRequest request, final HttpServletResponse response) throws Exception {
+        ensureEndpointAccessIsAuthorized(request, response);
+
+        Assert.notNull(this.loggerContext);
+
         final Map<String, Object> responseMap = new HashMap<>();
         final Map<String, Logger> loggers = getActiveLoggersInFactory();
         responseMap.put("activeLoggers", loggers.values());
@@ -129,6 +139,9 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
     @GetMapping(value = "/getConfiguration")
     @ResponseBody
     public Map<String, Object> getConfiguration(final HttpServletRequest request, final HttpServletResponse response) throws Exception {
+        ensureEndpointAccessIsAuthorized(request, response);
+
+        Assert.notNull(this.loggerContext);
 
         final Collection<Map<String, Object>> configuredLoggers = new HashSet<>();
         getLoggerConfigurations().forEach(config -> {
@@ -148,24 +161,24 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
                 builder.append("layoutFormat", appender.getLayout().getContentFormat());
                 builder.append("layoutContentType", appender.getLayout().getContentType());
                 if (appender instanceof FileAppender) {
-                    builder.append("file", ((FileAppender) appender).getFileName());
-                    builder.append("filePattern", "(none)");
+                    builder.append(FILE_PARAM, ((FileAppender) appender).getFileName());
+                    builder.append(FILE_PATTERN_PARAM, "(none)");
                 }
                 if (appender instanceof RandomAccessFileAppender) {
-                    builder.append("file", ((RandomAccessFileAppender) appender).getFileName());
-                    builder.append("filePattern", "(none)");
+                    builder.append(FILE_PARAM, ((RandomAccessFileAppender) appender).getFileName());
+                    builder.append(FILE_PATTERN_PARAM, "(none)");
                 }
                 if (appender instanceof RollingFileAppender) {
-                    builder.append("file", ((RollingFileAppender) appender).getFileName());
-                    builder.append("filePattern", ((RollingFileAppender) appender).getFilePattern());
+                    builder.append(FILE_PARAM, ((RollingFileAppender) appender).getFileName());
+                    builder.append(FILE_PATTERN_PARAM, ((RollingFileAppender) appender).getFilePattern());
                 }
                 if (appender instanceof MemoryMappedFileAppender) {
-                    builder.append("file", ((MemoryMappedFileAppender) appender).getFileName());
-                    builder.append("filePattern", "(none)");
+                    builder.append(FILE_PARAM, ((MemoryMappedFileAppender) appender).getFileName());
+                    builder.append(FILE_PATTERN_PARAM, "(none)");
                 }
                 if (appender instanceof RollingRandomAccessFileAppender) {
-                    builder.append("file", ((RollingRandomAccessFileAppender) appender).getFileName());
-                    builder.append("filePattern", ((RollingRandomAccessFileAppender) appender).getFilePattern());
+                    builder.append(FILE_PARAM, ((RollingRandomAccessFileAppender) appender).getFileName());
+                    builder.append(FILE_PATTERN_PARAM, ((RollingRandomAccessFileAppender) appender).getFilePattern());
                 }
                 appenders.add(builder.build());
             });
@@ -221,8 +234,10 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
                                   @RequestParam final String loggerLevel,
                                   @RequestParam(defaultValue = "false") final boolean additive,
                                   final HttpServletRequest request,
-                                  final HttpServletResponse response)
-            throws Exception {
+                                  final HttpServletResponse response) throws Exception {
+        ensureEndpointAccessIsAuthorized(request, response);
+
+        Assert.notNull(this.loggerContext);
 
         final Collection<LoggerConfig> loggerConfigs = getLoggerConfigurations();
         loggerConfigs.stream().
@@ -245,6 +260,9 @@ public class LoggingConfigController extends AbstractNamedMvcEndpoint {
     @GetMapping(value = "/getAuditLog")
     @ResponseBody
     public Set<AuditActionContext> getAuditLog(final HttpServletRequest request, final HttpServletResponse response) throws Exception {
+        ensureEndpointAccessIsAuthorized(request, response);
+        Assert.notNull(this.loggerContext);
+
         return this.auditTrailManager.get();
     }
 }

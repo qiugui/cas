@@ -8,6 +8,8 @@ import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.handler.support.AbstractPreAndPostProcessingAuthenticationHandler;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.web.support.WebUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,13 +33,16 @@ import java.util.Optional;
 public class RadiusTokenAuthenticationHandler extends AbstractPreAndPostProcessingAuthenticationHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadiusTokenAuthenticationHandler.class);
     
-    private List<RadiusServer> servers;
-    private boolean failoverOnException;
-    private boolean failoverOnAuthenticationFailure;
+    private final List<RadiusServer> servers;
+    private final boolean failoverOnException;
+    private final boolean failoverOnAuthenticationFailure;
 
-    public RadiusTokenAuthenticationHandler(final List<RadiusServer> servers, 
-                                            final boolean failoverOnException, 
+    public RadiusTokenAuthenticationHandler(final String name, final ServicesManager servicesManager,
+                                            final PrincipalFactory principalFactory,
+                                            final List<RadiusServer> servers,
+                                            final boolean failoverOnException,
                                             final boolean failoverOnAuthenticationFailure) {
+        super(name, servicesManager, principalFactory, null);
         this.servers = servers;
         this.failoverOnException = failoverOnException;
         this.failoverOnAuthenticationFailure = failoverOnAuthenticationFailure;
@@ -63,7 +68,8 @@ public class RadiusTokenAuthenticationHandler extends AbstractPreAndPostProcessi
                     RadiusUtils.authenticate(username, password, this.servers,
                             this.failoverOnAuthenticationFailure, this.failoverOnException);
             if (result.getKey()) {
-                return createHandlerResult(credential, this.principalFactory.createPrincipal(username, result.getValue().get()),
+                return createHandlerResult(credential,
+                        this.principalFactory.createPrincipal(username, result.getValue().get()),
                         new ArrayList<>());
             }
             throw new FailedLoginException("Radius authentication failed for user " + username);
@@ -85,10 +91,8 @@ public class RadiusTokenAuthenticationHandler extends AbstractPreAndPostProcessi
             try {
                 server.authenticate(uidPsw, uidPsw);
             } catch (final TimeoutException | SocketTimeoutException e) {
-
                 LOGGER.debug("Server [{}] is not available", server);
                 continue;
-
             } catch (final Exception e) {
                 LOGGER.debug("Pinging RADIUS server was successful. Response [{}]", e.getMessage());
             }

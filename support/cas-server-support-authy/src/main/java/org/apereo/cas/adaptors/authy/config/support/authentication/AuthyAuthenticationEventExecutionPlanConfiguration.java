@@ -1,25 +1,22 @@
 package org.apereo.cas.adaptors.authy.config.support.authentication;
 
-import com.google.common.base.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.adaptors.authy.AuthyAuthenticationHandler;
 import org.apereo.cas.adaptors.authy.AuthyClientInstance;
 import org.apereo.cas.adaptors.authy.AuthyMultifactorAuthenticationProvider;
 import org.apereo.cas.adaptors.authy.web.flow.AuthyAuthenticationRegistrationWebflowAction;
+import org.apereo.cas.authentication.CoreAuthenticationUtils;
 import org.apereo.cas.authentication.metadata.AuthenticationContextAttributeMetaDataPopulator;
-import org.apereo.cas.authentication.AuthenticationEventExecutionPlan;
 import org.apereo.cas.authentication.AuthenticationHandler;
 import org.apereo.cas.authentication.AuthenticationMetaDataPopulator;
 import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
-import org.apereo.cas.config.support.authentication.AuthenticationEventExecutionPlanConfigurer;
+import org.apereo.cas.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.configuration.CasConfigurationProperties;
-import org.apereo.cas.configuration.model.support.mfa.MultifactorAuthenticationProperties;
-import org.apereo.cas.services.DefaultMultifactorAuthenticationProviderBypass;
+import org.apereo.cas.configuration.model.support.mfa.AuthyMultifactorProperties;
 import org.apereo.cas.services.MultifactorAuthenticationProvider;
 import org.apereo.cas.services.MultifactorAuthenticationProviderBypass;
 import org.apereo.cas.services.ServicesManager;
-import org.apereo.cas.ticket.registry.TicketRegistrySupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -33,11 +30,12 @@ import org.springframework.webflow.execution.Action;
  * This is {@link AuthyAuthenticationEventExecutionPlanConfiguration}.
  *
  * @author Misagh Moayyed
+ * @author Dmitriy Kopylenko
  * @since 5.1.0
  */
 @Configuration("authyAuthenticationEventExecutionPlanConfiguration")
 @EnableConfigurationProperties(CasConfigurationProperties.class)
-public class AuthyAuthenticationEventExecutionPlanConfiguration implements AuthenticationEventExecutionPlanConfigurer {
+public class AuthyAuthenticationEventExecutionPlanConfiguration {
 
     @Autowired
     private CasConfigurationProperties casProperties;
@@ -46,32 +44,27 @@ public class AuthyAuthenticationEventExecutionPlanConfiguration implements Authe
     @Qualifier("servicesManager")
     private ServicesManager servicesManager;
 
-    @Autowired
-    @Qualifier("defaultTicketRegistrySupport")
-    private TicketRegistrySupport ticketRegistrySupport;
-
     @RefreshScope
     @Bean
     public AuthyClientInstance authyClientInstance() {
-        final MultifactorAuthenticationProperties.Authy authy = casProperties.getAuthn().getMfa().getAuthy();
+        final AuthyMultifactorProperties authy = casProperties.getAuthn().getMfa().getAuthy();
         if (StringUtils.isBlank(authy.getApiKey())) {
             throw new IllegalArgumentException("Authy API key must be defined");
         }
-        return new AuthyClientInstance(authy.getApiKey(), authy.getApiUrl(), authy.getMailAttribute(), authy.getPhoneAttribute());
+        return new AuthyClientInstance(authy.getApiKey(), authy.getApiUrl(), 
+                authy.getMailAttribute(), authy.getPhoneAttribute(),
+                authy.getCountryCode());
     }
 
     @RefreshScope
     @Bean
     public AuthenticationHandler authyAuthenticationHandler() {
         try {
-            final boolean forceVerification = casProperties.getAuthn().getMfa().getAuthy().isForceVerification();
-            final AuthyAuthenticationHandler h = new AuthyAuthenticationHandler(authyClientInstance(), forceVerification);
-            h.setServicesManager(servicesManager);
-            h.setPrincipalFactory(authyPrincipalFactory());
-            h.setName(casProperties.getAuthn().getMfa().getAuthy().getName());
-            return h;
+            final AuthyMultifactorProperties authy = casProperties.getAuthn().getMfa().getAuthy();
+            final boolean forceVerification = authy.isForceVerification();
+            return new AuthyAuthenticationHandler(authy.getName(), servicesManager, authyPrincipalFactory(), authyClientInstance(), forceVerification);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -95,7 +88,7 @@ public class AuthyAuthenticationEventExecutionPlanConfiguration implements Authe
     @Bean
     @RefreshScope
     public MultifactorAuthenticationProviderBypass authyBypassEvaluator() {
-        return new DefaultMultifactorAuthenticationProviderBypass(casProperties.getAuthn().getMfa().getAuthy().getBypass());
+        return CoreAuthenticationUtils.newMultifactorAuthenticationProviderBypass(casProperties.getAuthn().getMfa().getAuthy().getBypass());
     }
 
     @Bean
@@ -114,9 +107,12 @@ public class AuthyAuthenticationEventExecutionPlanConfiguration implements Authe
         return new AuthyAuthenticationRegistrationWebflowAction(authyClientInstance());
     }
 
-    @Override
-    public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
-        plan.registerAuthenticationHandler(authyAuthenticationHandler());
-        plan.registerMetadataPopulator(authyAuthenticationMetaDataPopulator());
+    @ConditionalOnMissingBean(name = "authyAuthenticationEventExecutionPlanConfigurer")
+    @Bean
+    public AuthenticationEventExecutionPlanConfigurer authyAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> {
+            plan.registerAuthenticationHandler(authyAuthenticationHandler());
+            plan.registerMetadataPopulator(authyAuthenticationMetaDataPopulator());
+        };
     }
 }

@@ -3,7 +3,6 @@ package org.apereo.cas.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.FileUtils;
 import org.apereo.cas.authentication.principal.Service;
-import org.apereo.cas.mock.MockService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -54,13 +53,11 @@ public class RegexRegisteredServiceTests {
                         "https://service.vt.edu/webapp?a=1",
                         true,
                 },
-                // CAS-1071 domain-specific HTTP catch-all #2
                 {
                         newService(domainCatchallHttp),
                         "http://test-01.service.vt.edu/webapp?a=1",
                         true,
                 },
-                // CAS-1071 domain-specific HTTP catch-all #3
                 {
                         newService(domainCatchallHttp),
                         "https://thepiratebay.se?service.vt.edu/webapp?a=1",
@@ -105,7 +102,7 @@ public class RegexRegisteredServiceTests {
         if (serviceToMatch == null) {
             testService = null;
         } else {
-            testService = new MockService(serviceToMatch);
+            testService = RegisteredServiceTestUtils.getService(serviceToMatch);
         }
         assertEquals(expected, service.matches(testService));
     }
@@ -119,11 +116,9 @@ public class RegexRegisteredServiceTests {
     @Test
     public void verifySerializeARegexRegisteredServiceToJson() throws IOException {
         final RegexRegisteredService serviceWritten = newService("serviceId");
-
+        serviceWritten.setLogoutType(RegisteredService.LogoutType.FRONT_CHANNEL);
         MAPPER.writeValue(JSON_FILE, serviceWritten);
-
         final RegisteredService serviceRead = MAPPER.readValue(JSON_FILE, RegexRegisteredService.class);
-
         assertEquals(serviceWritten, serviceRead);
     }
 }

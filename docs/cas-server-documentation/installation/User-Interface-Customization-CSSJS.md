@@ -30,7 +30,7 @@ You can also create your own `custom.js` file, for example, and call it from wit
 
 If you are developing themes per service, each theme also has the ability to specify a custom `cas.js` file under the `cas.javascript.file` setting.
 
-The following Javascript libraries are utilized by CAS automatically:
+Most importantly, the following Javascript libraries are utilized by CAS automatically:
 
 * JQuery
 * JQuery UI
@@ -38,8 +38,9 @@ The following Javascript libraries are utilized by CAS automatically:
 * Bootstrap
 
 ## Asynchronous Script Loading
+
 CAS will attempt load the aforementioned script libraries asynchronously so as to not block the page rendering functionality.
-The loading of script files is handled by the [`head.js` library](http://headjs.com) and is the responsibility of `cas.js` file.
+The loading of script files is handled by the [`head.js` library](http://headjs.com) and is the responsibility of some javascript in the `bottom.html` template fragment which calls some methods in the `cas.js` file.
 
 The only script that is loaded synchronously is the `head.js` library itself.
 
@@ -55,44 +56,47 @@ function jqueryReady() {
 ```
 
 ## Checking CAPSLOCK
+
 CAS will display a brief warning when the CAPSLOCK key is turned on during the typing of the credential password. This check is enforced by the `cas.js` file.
 
 ## Browser Cookie Support
+
 For CAS to honor a single sign-on session, the browser MUST support and accept cookies. CAS will notify the
 user if the browser has turned off its support for cookies. This behavior is controlled via the `cas.js` file.
 
 ## Preserving Anchor Fragments
-Anchors/fragments may be lost across redirects as the server-side handler of the form post ignores the client-side anchor, unless appended to the form POST url.
-This is needed if you want a CAS-authenticated application to be able to use anchors/fragments when bookmarking.
 
-### Changes to `cas.js`
-```javascript
-/**
- * Prepares the login form for submission by appending any URI
- * fragment (hash) to the form action in order to propagate it
- * through the re-direct (i.e. store it client side).
- * @param form The login form object.
- * @returns true to allow the form to be submitted.
- */
-function prepareSubmit(form) {
-    // Extract the fragment from the browser's current location.
-    var hash = decodeURIComponent(self.document.location.hash);
+Anchors/fragments may be lost across redirects as the server-side handler of the form post ignores the client-side anchor, unless appended to the form POST url. This is needed if you want a CAS-authenticated application to be able to use anchors/fragments when bookmarking. CAS is configured by default to preserve anchor fragments where and when specified. There is nothing further for you to do.
 
-    // The fragment value may not contain a leading # symbol
-    if (hash && hash.indexOf("#") === -1) {
-        hash = "#" + hash;
-    }
+### WebJARs for Javascript/CSS Libraries
 
-    // Append the fragment to the current action so that it persists to the redirected URL.
-    form.action = form.action + hash;
-    return true;
-}
+The CAS application application packages third party static resources inside the CAS webapp rather than referencing CDN links so that CAS may be deployed on 
+networks with limited internet access.
+
+The 3rd party static resources are packaged in "WebJAR" jar files and served up via the servlet `3.0` feature 
+that merges any folders under `META-INF/resources` in web application jars with the application's web root.
+
+For developers modifying CAS, if adding or modifying a 3rd party library, the steps are:
+
+- Add WebJAR dependency to `dependencies.gradle` in the `ext.library.webjars` section.
+- Add dependency version to `gradle.properties` and use it in `dependency.gradle`.
+- Add entry to `core/cas-server-core-web/src/main/resources/cas_common_messages.properties` for each resource (e.g. js or css). 
+- Reference the version from `gradle.properties` in the URL and it will be filtered in at build time).
+
+<div class="alert alert-info"><strong>Resource Caching</strong><p>The build attempts to rebuild all relevant modules again when version numbers change and resources upgraded. If you do need to forcefully remove cached artifacts and repackage the application anew, run the build's <code>clean</code> task inside the <code>core/cas-server-core-web</code> module.</p></div>
+
+For example:
+
+```properties
+webjars.zxcvbn.js=/webjars/zxcvbn/${zxcvbnVersion}/zxcvbn.js
 ```
 
-
-### Changes to Login Form
+Then Reference the entry from `cas_common_messages.properties` in the relevant view (i.e HTML page) where the entry is `webjars.zxcvbn.js`:
 
 ```html
-<form method="post" id="fm1" th:object="${credential}">
-        onsubmit="return prepareSubmit(this);">
+<script type="text/javascript" th:src="@{#{webjars.zxcvbn.js}}"></script>
 ```
+
+#### Building WebJARs
+
+You can search for webjars at http://webjars.org. There are three flavors of WebJARs that you can read about but the NPM and Bower types can be created automatically for any version (if they don't already exist) as long as there exists an NPM or Bower package for the web resources you want to use. Click the "Add a webjar" button and follow the instructions. If customizing the UI in an overlay, the deployer can add webjars as dependencies to their overlay project and reference the URLs of the resource either directly in an html file or via adding an entry to a `common_messages.properties` file in the overlay project's `src\main\resources` folder.

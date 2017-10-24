@@ -1,14 +1,18 @@
 description = "Apereo CAS Mongo Authentication Support"
 dependencies {
+    implementation project(":support:cas-server-support-pac4j-core")
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":support:cas-server-support-pac4j-authentication")
+    implementation project(":core:cas-server-core-util")
+    implementation project(":core:cas-server-core-configuration")
+    implementation libraries.pac4j
+    implementation libraries.mongo
 
-    compile project(":core:cas-server-core-authentication")
-    compile project(":support:cas-server-support-pac4j-authentication")
-    compile libraries.pac4j
-    compile libraries.spring
-    compile libraries.mongo
-    runtime libraries.hibernate
-    testCompile project(":core:cas-server-core-services")
-    testCompile project(":core:cas-server-core-authentication")
-    testCompile project(path: ":core:cas-server-core-authentication", configuration: "tests")
-    testCompile project(path: ":core:cas-server-core-util", configuration: "tests")
+    testImplementation project(":support:cas-server-support-person-directory")
+    testImplementation project(":core:cas-server-core-services")
+    testImplementation project(":core:cas-server-core-authentication")
+    testImplementation project(path: ":core:cas-server-core-authentication", configuration: "tests")
+    testImplementation project(path: ":core:cas-server-core-util", configuration: "tests")
+    testImplementation project(":core:cas-server-core-tickets")
+    testImplementation project(":core:cas-server-core-web")
 }

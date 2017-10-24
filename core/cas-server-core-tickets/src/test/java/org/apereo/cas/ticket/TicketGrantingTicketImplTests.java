@@ -7,7 +7,6 @@ import org.apache.commons.io.FileUtils;
 import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.CoreAuthenticationTestUtils;
 import org.apereo.cas.authentication.principal.Service;
-import org.apereo.cas.mock.MockService;
 import org.apereo.cas.services.RegisteredServiceTestUtils;
 import org.apereo.cas.ticket.support.NeverExpiresExpirationPolicy;
 import org.apereo.cas.util.DefaultUniqueTicketIdGenerator;
@@ -78,8 +77,6 @@ public class TicketGrantingTicketImplTests {
     @Test
     public void verifyNullAuthentication() {
         this.thrown.expect(Exception.class);
-        this.thrown.expectMessage("authentication cannot be null");
-
         new TicketGrantingTicketImpl(TGT_ID, null, null, null, new NeverExpiresExpirationPolicy());
     }
 
@@ -110,6 +107,21 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         assertFalse(t.isRoot());
+    }
+
+    @Test
+    public void verifyProperRootIsReturned() {
+        final TicketGrantingTicketImpl t1 = new TicketGrantingTicketImpl(TGT_ID, null, null,
+                CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
+        final TicketGrantingTicket t2 = new TicketGrantingTicketImpl(TGT_ID,
+                CoreAuthenticationTestUtils.getService("gantor"), t1,
+                CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
+
+        final TicketGrantingTicket t3 = new TicketGrantingTicketImpl(TGT_ID,
+                CoreAuthenticationTestUtils.getService("gantor"), t2,
+                CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
+
+        assertSame(t1, t3.getRoot());
     }
 
     @Test
@@ -158,7 +170,7 @@ public class TicketGrantingTicketImplTests {
     public void verifyServiceTicketAsFromInitialCredentials() {
         final TicketGrantingTicket t = new TicketGrantingTicketImpl(TGT_ID, null, null,
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
-        final ServiceTicket s = t.grantServiceTicket(this.ID_GENERATOR
+        final ServiceTicket s = t.grantServiceTicket(ID_GENERATOR
             .getNewTicketId(ServiceTicket.PREFIX), RegisteredServiceTestUtils.getService(),
             new NeverExpiresExpirationPolicy(), false, true);
 
@@ -171,13 +183,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         final ServiceTicket s = t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -188,10 +200,10 @@ public class TicketGrantingTicketImplTests {
 
     @Test
     public void verifyWebApplicationServices() {
-        final MockService testService = new MockService(TGT_ID);
+        final Service testService = RegisteredServiceTestUtils.getService(TGT_ID);
         final TicketGrantingTicket t = new TicketGrantingTicketImpl(TGT_ID, null, null,
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
-        t.grantServiceTicket(this.ID_GENERATOR
+        t.grantServiceTicket(ID_GENERATOR
             .getNewTicketId(ServiceTicket.PREFIX), testService,
             new NeverExpiresExpirationPolicy(), false, true);
         Map<String, Service> services = t.getServices();
@@ -205,10 +217,10 @@ public class TicketGrantingTicketImplTests {
 
     @Test
     public void verifyWebApplicationExpire() {
-        final MockService testService = new MockService(TGT_ID);
+        final Service testService = RegisteredServiceTestUtils.getService(TGT_ID);
         final TicketGrantingTicket t = new TicketGrantingTicketImpl(TGT_ID, null, null,
             CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
-        t.grantServiceTicket(this.ID_GENERATOR
+        t.grantServiceTicket(ID_GENERATOR
                         .getNewTicketId(ServiceTicket.PREFIX), testService,
                 new NeverExpiresExpirationPolicy(), false, true);
         assertFalse(t.isExpired());
@@ -222,13 +234,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -243,13 +255,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com?test"),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com;JSESSIONID=xxx"),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -264,13 +276,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com/webapp1"),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com/webapp1?test=true"),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -285,13 +297,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -306,13 +318,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService(),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService2(),
                 new NeverExpiresExpirationPolicy(),
                 false,
@@ -327,13 +339,13 @@ public class TicketGrantingTicketImplTests {
                 CoreAuthenticationTestUtils.getAuthentication(), new NeverExpiresExpirationPolicy());
 
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com/webapp1"),
                 new NeverExpiresExpirationPolicy(),
                 false,
                 true);
         t.grantServiceTicket(
-                this.ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
+                ID_GENERATOR.getNewTicketId(ServiceTicket.PREFIX),
                 RegisteredServiceTestUtils.getService("http://host.com/webapp2"),
                 new NeverExpiresExpirationPolicy(),
                 false,

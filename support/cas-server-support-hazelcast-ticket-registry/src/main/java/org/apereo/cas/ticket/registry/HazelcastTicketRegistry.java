@@ -2,20 +2,19 @@ package org.apereo.cas.ticket.registry;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
-import com.hazelcast.query.PagingPredicate;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.ticket.Ticket;
+import org.apereo.cas.ticket.TicketCatalog;
+import org.apereo.cas.ticket.TicketDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 /**
@@ -31,32 +30,24 @@ import java.util.stream.Collectors;
  */
 public class HazelcastTicketRegistry extends AbstractTicketRegistry implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(HazelcastTicketRegistry.class);
-    
-    private IMap<String, Ticket> registry;
 
-    private HazelcastInstance hazelcastInstance;
-
-    private int pageSize;
+    private final HazelcastInstance hazelcastInstance;
+    private final TicketCatalog ticketCatalog;
+    private final int pageSize;
 
     /**
-     * Instantiates a new Hazelcast ticket registry.
+     * Instantiates a new Hazelcast ticket ticketGrantingTicketsRegistry.
      *
      * @param hz       An instance of {@code HazelcastInstance}
-     * @param mapName  Name of map to use
+     * @param plan     the plan
      * @param pageSize the page size
      */
-    public HazelcastTicketRegistry(final HazelcastInstance hz, final String mapName, final int pageSize) {
-        this.registry = hz.getMap(mapName);
+    public HazelcastTicketRegistry(final HazelcastInstance hz, final TicketCatalog plan, final int pageSize) {
         this.hazelcastInstance = hz;
         this.pageSize = pageSize;
-    }
+        this.ticketCatalog = plan;
 
-    /**
-     * Init.
-     */
-    @PostConstruct
-    public void init() {
-        LOGGER.info("Setting up Hazelcast Ticket Registry instance [{}] with name [{}]", this.hazelcastInstance, registry.getName());
+        LOGGER.info("Setting up Hazelcast Ticket Registry instance [{}]", this.hazelcastInstance);
     }
 
     @Override
@@ -67,63 +58,77 @@ public class HazelcastTicketRegistry extends AbstractTicketRegistry implements C
 
     @Override
     public void addTicket(final Ticket ticket) {
-        LOGGER.debug("Adding ticket [{}] with ttl [{}s]", ticket.getId(), ticket.getExpirationPolicy().getTimeToLive());
+        final long ttl = ticket.getExpirationPolicy().getTimeToLive();
+        if (ttl < 0) {
+            throw new IllegalArgumentException("The expiration policy of ticket " + ticket.getId() + "is set to use a negative ttl");
+        }
+
+        LOGGER.debug("Adding ticket [{}] with ttl [{}s]", ticket.getId(), ttl);
         final Ticket encTicket = encodeTicket(ticket);
-        this.registry.set(encTicket.getId(), encTicket, ticket.getExpirationPolicy().getTimeToLive(), TimeUnit.SECONDS);
+
+        final TicketDefinition metadata = this.ticketCatalog.find(ticket);
+        final IMap<String, Ticket> ticketMap = getTicketMapInstanceByMetadata(metadata);
+
+        ticketMap.set(encTicket.getId(), encTicket, ttl, TimeUnit.SECONDS);
+        LOGGER.debug("Added ticket [{}] with ttl [{}s]", encTicket.getId(), ttl);
     }
 
+    private IMap<String, Ticket> getTicketMapInstanceByMetadata(final TicketDefinition metadata) {
+        final String mapName = metadata.getProperties().getStorageName();
+        LOGGER.debug("Locating map name [{}] for ticket definition [{}]", mapName, metadata);
+        return getTicketMapInstance(mapName);
+    }
 
     @Override
     public Ticket getTicket(final String ticketId) {
         final String encTicketId = encodeTicketId(ticketId);
         if (StringUtils.isNotBlank(encTicketId)) {
-            final Ticket ticket = this.registry.get(encTicketId);
-            return decodeTicket(ticket);
+            final TicketDefinition metadata = this.ticketCatalog.find(ticketId);
+            if (metadata != null) {
+                final IMap<String, Ticket> map = getTicketMapInstanceByMetadata(metadata);
+                final Ticket ticket = map.get(encTicketId);
+                final Ticket result = decodeTicket(ticket);
+                if (result != null && result.isExpired()) {
+                    LOGGER.debug("Ticket [{}] has expired and is now removed from the cache", result.getId());
+                    map.remove(encTicketId);
+                    return null;
+                }
+                return result;
+            }
+            LOGGER.warn("No ticket definition could be found in the catalog to match [{}]", ticketId);
         }
         return null;
     }
 
     @Override
-    public boolean deleteSingleTicket(final String ticketId) {
-        return this.registry.remove(ticketId) != null;
+    public boolean deleteSingleTicket(final String ticketIdToDelete) {
+        final String encTicketId = encodeTicketId(ticketIdToDelete);
+        final TicketDefinition metadata = this.ticketCatalog.find(ticketIdToDelete);
+        final IMap<String, Ticket> map = getTicketMapInstanceByMetadata(metadata);
+        return map.remove(encTicketId) != null;
     }
 
     @Override
     public long deleteAll() {
-        final int size = this.registry.size();
-        this.registry.evictAll();
-        this.registry.clear();
-        return size;
+        return this.ticketCatalog.findAll().stream()
+                .map(this::getTicketMapInstanceByMetadata)
+                .filter(Objects::nonNull)
+                .mapToInt(instance -> {
+                    final int size = instance.size();
+                    instance.evictAll();
+                    instance.clear();
+                    return size;
+                })
+                .sum();
     }
-    
+
     @Override
     public Collection<Ticket> getTickets() {
-        final Collection<Ticket> collection = new HashSet<>();
-
-        LOGGER.debug("Attempting to acquire lock from Hazelcast instance...");
-        final Lock lock = this.hazelcastInstance.getLock(getClass().getName());
-        lock.lock();
-        LOGGER.debug("Hazelcast instance lock acquired");
-
-        try {
-            LOGGER.debug("Setting up the paging predicate with page size of [{}]", this.pageSize);
-            final PagingPredicate pagingPredicate = new PagingPredicate(this.pageSize);
-
-            LOGGER.debug("Retrieving the initial collection of tickets from Hazelcast instance...");
-            Collection<Ticket> entrySet = this.registry.values(pagingPredicate);
-
-            while (!entrySet.isEmpty()) {
-                collection.addAll(entrySet.stream().map(this::decodeTicket).collect(Collectors.toList()));
-
-                pagingPredicate.nextPage();
-                entrySet = this.registry.values(pagingPredicate);
-            }
-        } catch (final Exception e) {
-            LOGGER.debug(e.getMessage(), e);
-        } finally {
-            lock.unlock();
-        }
-        return collection;
+        return this.ticketCatalog.findAll().stream()
+                .map(metadata -> getTicketMapInstanceByMetadata(metadata).values())
+                .flatMap(tickets -> tickets.stream().limit(pageSize).collect(Collectors.toList()).stream())
+                .map(this::decodeTicket)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -134,7 +139,7 @@ public class HazelcastTicketRegistry extends AbstractTicketRegistry implements C
         try {
             LOGGER.info("Shutting down Hazelcast instance [{}]", this.hazelcastInstance.getConfig().getInstanceName());
             this.hazelcastInstance.shutdown();
-        } catch (final Throwable e) {
+        } catch (final Exception e) {
             LOGGER.debug(e.getMessage());
         }
     }
@@ -142,5 +147,16 @@ public class HazelcastTicketRegistry extends AbstractTicketRegistry implements C
     @Override
     public void close() throws IOException {
         shutdown();
+    }
+
+    private IMap<String, Ticket> getTicketMapInstance(final String mapName) {
+        try {
+            final IMap<String, Ticket> inst = hazelcastInstance.getMap(mapName);
+            LOGGER.debug("Located Hazelcast map instance [{}]", mapName);
+            return inst;
+        } catch (final Exception e) {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return null;
     }
 }

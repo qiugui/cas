@@ -3,7 +3,7 @@ package org.apereo.cas.services;
 import org.apereo.cas.authentication.principal.Service;
 
 /**
- * Simple container for holding a service principal and its corresponding registered serivce.
+ * Simple container for holding a service principal and its corresponding registered service.
  *
  * @author Marvin S. Addison
  * @since 4.0.0
@@ -12,11 +12,11 @@ public class ServiceContext {
 
     /** Service principal. */
     
-    private Service service;
+    private final Service service;
 
     /** Registered service corresponding to service principal. */
     
-    private RegisteredService registeredService;
+    private final RegisteredService registeredService;
 
     /**
      * Creates a new instance with required parameters.

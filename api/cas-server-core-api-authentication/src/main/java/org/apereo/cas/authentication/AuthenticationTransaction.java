@@ -5,7 +5,7 @@ import org.apereo.cas.authentication.principal.Service;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,8 +20,8 @@ public class AuthenticationTransaction implements Serializable {
 
     private static final long serialVersionUID = 6213904009424725484L;
 
-    private Collection<Credential> credentials;
-    private Service service;
+    private final Collection<Credential> credentials;
+    private final Service service;
 
     /**
      * Instantiates a new Default authentication transaction.
@@ -65,13 +65,40 @@ public class AuthenticationTransaction implements Serializable {
         return this.service;
     }
 
+    /**
+     * Gets the first (primary) credential in the chain.
+     *
+     * @return the credential
+     */
+    public Credential getCredential() {
+        if (!credentials.isEmpty()) {
+            return credentials.iterator().next();
+        }
+        return null;
+    }
+
+    /**
+     * Is credential of given type?
+     *
+     * @param clazz the clazz
+     * @return true/false
+     */
+    public boolean isCredentialOfType(final Class clazz) {
+        try {
+            final Object object = clazz.cast(getCredential());
+            return object != null;
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
     private static Set<Credential> sanitizeCredentials(final Credential[] credentials) {
         if (credentials != null && credentials.length > 0) {
             return Arrays.stream(credentials)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
         }
-        return Collections.emptySet();
+        return new HashSet<>(0);
     }
 }
 

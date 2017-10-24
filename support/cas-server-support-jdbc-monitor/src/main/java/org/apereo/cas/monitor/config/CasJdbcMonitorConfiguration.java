@@ -3,10 +3,12 @@ package org.apereo.cas.monitor.config;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.core.monitor.MonitorProperties;
 import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.support.JpaBeans;
 import org.apereo.cas.monitor.JdbcDataSourceMonitor;
 import org.apereo.cas.monitor.Monitor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
@@ -35,7 +37,8 @@ public class CasJdbcMonitorConfiguration {
     @RefreshScope
     public Monitor dataSourceMonitor(@Qualifier("pooledJdbcMonitorExecutorService") final ExecutorService executor) {
         final MonitorProperties.Jdbc jdbc = casProperties.getMonitor().getJdbc();
-        return new JdbcDataSourceMonitor(executor, Long.valueOf(jdbc.getMaxWait()).intValue(), monitorDataSource(), jdbc.getValidationQuery());
+        return new JdbcDataSourceMonitor(executor, (int) jdbc.getMaxWait(),
+                monitorDataSource(), jdbc.getValidationQuery());
     }
 
     @Lazy
@@ -44,9 +47,10 @@ public class CasJdbcMonitorConfiguration {
         return Beans.newThreadPoolExecutorFactoryBean(casProperties.getMonitor().getJdbc().getPool());
     }
 
-    @RefreshScope
+    @ConditionalOnMissingBean(name = "monitorDataSource")
     @Bean
+    @RefreshScope
     public DataSource monitorDataSource() {
-        return Beans.newHickariDataSource(casProperties.getMonitor().getJdbc());
+        return JpaBeans.newDataSource(casProperties.getMonitor().getJdbc());
     }
 }

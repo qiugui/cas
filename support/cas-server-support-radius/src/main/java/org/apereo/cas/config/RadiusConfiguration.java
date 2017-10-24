@@ -6,15 +6,17 @@ import org.apereo.cas.adaptors.radius.RadiusClientFactory;
 import org.apereo.cas.adaptors.radius.RadiusProtocol;
 import org.apereo.cas.adaptors.radius.RadiusServer;
 import org.apereo.cas.adaptors.radius.authentication.handler.support.RadiusAuthenticationHandler;
-import org.apereo.cas.authentication.AuthenticationEventExecutionPlan;
 import org.apereo.cas.authentication.AuthenticationHandler;
 import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.authentication.principal.PrincipalNameTransformerUtils;
+import org.apereo.cas.authentication.support.password.PasswordEncoderUtils;
 import org.apereo.cas.authentication.support.password.PasswordPolicyConfiguration;
-import org.apereo.cas.config.support.authentication.AuthenticationEventExecutionPlanConfigurer;
+import org.apereo.cas.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.configuration.model.support.radius.RadiusClientProperties;
 import org.apereo.cas.configuration.model.support.radius.RadiusProperties;
-import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.model.support.radius.RadiusServerProperties;
 import org.apereo.cas.services.ServicesManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ import java.util.List;
  * This this {@link RadiusConfiguration}.
  *
  * @author Misagh Moayyed
+ * @author Dmitriy Kopylenko
  * @since 5.0.0
  */
 @Configuration("radiusConfiguration")
@@ -65,15 +68,16 @@ public class RadiusConfiguration {
     @RefreshScope
     @Bean
     public JRadiusServerImpl radiusServer() {
-        final RadiusProperties.Client client = casProperties.getAuthn().getRadius().getClient();
-        final RadiusProperties.Server server = casProperties.getAuthn().getRadius().getServer();
+        final RadiusClientProperties client = casProperties.getAuthn().getRadius().getClient();
+        final RadiusServerProperties server = casProperties.getAuthn().getRadius().getServer();
 
         final RadiusClientFactory factory = new RadiusClientFactory(client.getAccountingPort(), client.getAuthenticationPort(), client.getSocketTimeout(),
                 client.getInetAddress(), client.getSharedSecret());
 
         final RadiusProtocol protocol = RadiusProtocol.valueOf(server.getProtocol());
 
-        return new JRadiusServerImpl(protocol, factory, server.getRetries(), server.getNasIpAddress(), server.getNasIpv6Address(), server.getNasPort(),
+        return new JRadiusServerImpl(protocol, factory, server.getRetries(),
+                server.getNasIpAddress(), server.getNasIpv6Address(), server.getNasPort(),
                 server.getNasPortId(), server.getNasIdentifier(), server.getNasRealPort());
     }
 
@@ -93,35 +97,27 @@ public class RadiusConfiguration {
     @Bean
     public AuthenticationHandler radiusAuthenticationHandler() {
         final RadiusProperties radius = casProperties.getAuthn().getRadius();
-        final RadiusAuthenticationHandler h = new RadiusAuthenticationHandler(radiusServers(), radius.isFailoverOnException(),
-                radius.isFailoverOnAuthenticationFailure());
+        final RadiusAuthenticationHandler h = new RadiusAuthenticationHandler(radius.getName(), servicesManager, radiusPrincipalFactory(), radiusServers(),
+                radius.isFailoverOnException(), radius.isFailoverOnAuthenticationFailure());
 
-        h.setPasswordEncoder(Beans.newPasswordEncoder(radius.getPasswordEncoder()));
-        h.setPrincipalNameTransformer(Beans.newPrincipalNameTransformer(radius.getPrincipalTransformation()));
+        h.setPasswordEncoder(PasswordEncoderUtils.newPasswordEncoder(radius.getPasswordEncoder()));
+        h.setPrincipalNameTransformer(PrincipalNameTransformerUtils.newPrincipalNameTransformer(radius.getPrincipalTransformation()));
 
         if (passwordPolicyConfiguration != null) {
             h.setPasswordPolicyConfiguration(passwordPolicyConfiguration);
         }
-
-        h.setPrincipalFactory(radiusPrincipalFactory());
-        h.setServicesManager(servicesManager);
-        h.setName(radius.getName());
         return h;
     }
 
-    /**
-     * The type Radius authentication event execution plan configuration.
-     */
-    @Configuration("radiusAuthenticationEventExecutionPlanConfiguration")
-    @EnableConfigurationProperties(CasConfigurationProperties.class)
-    public class RadiusAuthenticationEventExecutionPlanConfiguration implements AuthenticationEventExecutionPlanConfigurer {
-        @Override
-        public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
+    @ConditionalOnMissingBean(name = "radiusAuthenticationEventExecutionPlanConfigurer")
+    @Bean
+    public AuthenticationEventExecutionPlanConfigurer radiusAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> {
             if (StringUtils.isNotBlank(casProperties.getAuthn().getRadius().getClient().getInetAddress())) {
                 plan.registerAuthenticationHandler(radiusAuthenticationHandler());
             } else {
                 LOGGER.warn("No RADIUS address is defined. RADIUS support will be disabled.");
             }
-        }
+        };
     }
 }

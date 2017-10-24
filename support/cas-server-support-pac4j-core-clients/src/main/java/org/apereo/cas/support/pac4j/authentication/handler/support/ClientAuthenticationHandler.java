@@ -5,6 +5,8 @@ import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.handler.support.AbstractPac4jAuthenticationHandler;
 import org.apereo.cas.authentication.principal.ClientCredential;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.web.support.WebUtils;
 import org.pac4j.core.client.Client;
 import org.pac4j.core.client.Clients;
@@ -32,7 +34,10 @@ public class ClientAuthenticationHandler extends AbstractPac4jAuthenticationHand
     
     private final Clients clients;
 
-    public ClientAuthenticationHandler(final Clients clients) {
+    public ClientAuthenticationHandler(final String name, final ServicesManager servicesManager, 
+                                       final PrincipalFactory principalFactory,
+                                       final Clients clients) {
+        super(name, servicesManager, principalFactory, null);
         this.clients = clients;
     }
 
@@ -45,24 +50,22 @@ public class ClientAuthenticationHandler extends AbstractPac4jAuthenticationHand
     protected HandlerResult doAuthentication(final Credential credential) throws GeneralSecurityException, PreventedException {
         try {
             final ClientCredential clientCredentials = (ClientCredential) credential;
-            LOGGER.debug("clientCredentials  [{}]", clientCredentials);
+            LOGGER.debug("Located client credentials as [{}]", clientCredentials);
 
             final Credentials credentials = clientCredentials.getCredentials();
             final String clientName = credentials.getClientName();
-            LOGGER.debug("clientName:  [{}]", clientName);
+            LOGGER.debug("Client name: [{}]", clientName);
 
             // get client
             final Client client = this.clients.findClient(clientName);
-            LOGGER.debug("client: [{}]", client);
+            LOGGER.debug("Delegated client is: [{}]", client);
 
-            // web context
-            final HttpServletRequest request = WebUtils.getHttpServletRequest();
-            final HttpServletResponse response = WebUtils.getHttpServletResponse();
+            final HttpServletRequest request = WebUtils.getHttpServletRequestFromExternalWebflowContext();
+            final HttpServletResponse response = WebUtils.getHttpServletResponseFromExternalWebflowContext();
             final WebContext webContext = WebUtils.getPac4jJ2EContext(request, response);
 
-            // get user profile
             final UserProfile userProfile = client.getUserProfile(credentials, webContext);
-            LOGGER.debug("userProfile: [{}]", userProfile);
+            LOGGER.debug("Final user profile is: [{}]", userProfile);
             return createResult(clientCredentials, userProfile);
         } catch (final HttpAction e) {
             throw new PreventedException(e);

@@ -1,10 +1,12 @@
 package org.apereo.cas.adaptors.generic.remote;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.AbstractAuthenticationHandler;
 import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.DefaultHandlerResult;
+import org.apereo.cas.authentication.HandlerResult;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +26,6 @@ public class RemoteAddressAuthenticationHandler extends AbstractAuthenticationHa
 
     private static final int HEX_RIGHT_SHIFT_COEFFICIENT = 0xff;
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteAddressAuthenticationHandler.class);
-    
 
     /**
      * The network netmask.
@@ -35,6 +36,11 @@ public class RemoteAddressAuthenticationHandler extends AbstractAuthenticationHa
      * The network base address.
      */
     private InetAddress inetNetwork;
+
+    public RemoteAddressAuthenticationHandler(final String name, final ServicesManager servicesManager,
+                                              final PrincipalFactory principalFactory) {
+        super(name, servicesManager, principalFactory, null);
+    }
 
     @Override
     public HandlerResult authenticate(final Credential credential) throws GeneralSecurityException {
@@ -65,7 +71,7 @@ public class RemoteAddressAuthenticationHandler extends AbstractAuthenticationHa
      * @param ip      The IP address to check.
      * @return A boolean value.
      */
-    private boolean containsAddress(final InetAddress network, final InetAddress netmask, final InetAddress ip) {
+    private static boolean containsAddress(final InetAddress network, final InetAddress netmask, final InetAddress ip) {
         LOGGER.debug("Checking IP address: [{}] in [{}] by [{}]", ip, network, netmask);
 
         final byte[] networkBytes = network.getAddress();

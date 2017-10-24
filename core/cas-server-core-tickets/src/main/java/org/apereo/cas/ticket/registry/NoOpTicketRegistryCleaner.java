@@ -1,7 +1,7 @@
 package org.apereo.cas.ticket.registry;
 
-import org.apereo.cas.logout.LogoutManager;
-import org.apereo.cas.ticket.registry.support.LockingStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This is {@link NoOpTicketRegistryCleaner} that simply disables support for ticket cleanup.
@@ -9,16 +9,23 @@ import org.apereo.cas.ticket.registry.support.LockingStrategy;
  * @author Misagh Moayyed
  * @since 5.1.0
  */
-public class NoOpTicketRegistryCleaner extends DefaultTicketRegistryCleaner {
-    public NoOpTicketRegistryCleaner(final LockingStrategy lockingStrategy,
-                                      final LogoutManager logoutManager,
-                                      final TicketRegistry ticketRegistry,
-                                      final boolean isCleanerEnabled) {
-        super(lockingStrategy, logoutManager, ticketRegistry, isCleanerEnabled);
+public class NoOpTicketRegistryCleaner implements TicketRegistryCleaner {
+    private static final Logger LOGGER = LoggerFactory.getLogger(NoOpTicketRegistryCleaner.class);
+
+    private static TicketRegistryCleaner INSTANCE;
+
+    protected NoOpTicketRegistryCleaner() {
     }
 
-    @Override
-    protected boolean isCleanerSupported() {
-        return false;
+    /**
+     * Gets instance.
+     *
+     * @return the instance
+     */
+    public static TicketRegistryCleaner getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new NoOpTicketRegistryCleaner();
+        }
+        return INSTANCE;
     }
 }

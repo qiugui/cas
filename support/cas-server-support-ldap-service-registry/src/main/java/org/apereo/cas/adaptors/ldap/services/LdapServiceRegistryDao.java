@@ -2,9 +2,11 @@ package org.apereo.cas.adaptors.ldap.services;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.configuration.model.support.ldap.serviceregistry.LdapServiceRegistryProperties;
-import org.apereo.cas.configuration.support.Beans;
+
+import org.apereo.cas.services.AbstractServiceRegistryDao;
 import org.apereo.cas.services.RegisteredService;
-import org.apereo.cas.services.ServiceRegistryDao;
+import org.apereo.cas.support.events.service.CasRegisteredServiceLoadedEvent;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.util.LdapUtils;
 import org.ldaptive.ConnectionFactory;
 import org.ldaptive.LdapEntry;
@@ -15,7 +17,6 @@ import org.ldaptive.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -26,7 +27,7 @@ import java.util.List;
  * @author Marvin S. Addison
  * @since 4.0.0
  */
-public class LdapServiceRegistryDao implements ServiceRegistryDao {
+public class LdapServiceRegistryDao extends AbstractServiceRegistryDao {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LdapServiceRegistryDao.class);
 
@@ -36,7 +37,8 @@ public class LdapServiceRegistryDao implements ServiceRegistryDao {
     private final String searchFilter;
     private final String loadFilter;
 
-    public LdapServiceRegistryDao(final ConnectionFactory connectionFactory, final String baseDn, final LdapRegisteredServiceMapper ldapServiceMapper,
+    public LdapServiceRegistryDao(final ConnectionFactory connectionFactory, final String baseDn,
+                                  final LdapRegisteredServiceMapper ldapServiceMapper,
                                   final LdapServiceRegistryProperties ldapProperties) {
         this.connectionFactory = connectionFactory;
         this.baseDn = baseDn;
@@ -138,7 +140,13 @@ public class LdapServiceRegistryDao implements ServiceRegistryDao {
         try {
             final Response<SearchResult> response = getSearchResultResponse();
             if (LdapUtils.containsResultEntry(response)) {
-                response.getResult().getEntries().stream().map(this.ldapServiceMapper::mapToRegisteredService).forEach(list::add);
+                response.getResult().getEntries()
+                        .stream()
+                        .map(this.ldapServiceMapper::mapToRegisteredService)
+                        .forEach(s -> {
+                            publishEvent(new CasRegisteredServiceLoadedEvent(this, s));
+                            list.add(s);
+                        });
             }
         } catch (final LdapException e) {
             LOGGER.error(e.getMessage(), e);
@@ -148,7 +156,7 @@ public class LdapServiceRegistryDao implements ServiceRegistryDao {
 
     private Response<SearchResult> getSearchResultResponse() throws LdapException {
         return LdapUtils.executeSearchOperation(this.connectionFactory,
-                this.baseDn, Beans.newLdaptiveSearchFilter(this.loadFilter));
+                this.baseDn, LdapUtils.newLdaptiveSearchFilter(this.loadFilter));
     }
 
     @Override
@@ -177,9 +185,9 @@ public class LdapServiceRegistryDao implements ServiceRegistryDao {
      * @throws LdapException the ldap exception
      */
     private Response<SearchResult> searchForServiceById(final Long id) throws LdapException {
-        final SearchFilter filter = Beans.newLdaptiveSearchFilter(this.searchFilter,
-                Beans.LDAP_SEARCH_FILTER_DEFAULT_PARAM_NAME,
-                Arrays.asList(id.toString()));
+        final SearchFilter filter = LdapUtils.newLdaptiveSearchFilter(this.searchFilter,
+                LdapUtils.LDAP_SEARCH_FILTER_DEFAULT_PARAM_NAME,
+                CollectionUtils.wrap(id.toString()));
         return LdapUtils.executeSearchOperation(this.connectionFactory, this.baseDn, filter);
     }
 

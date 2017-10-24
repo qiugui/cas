@@ -3,6 +3,7 @@ package org.apereo.cas.digest.util;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.auth.DigestScheme;
+import org.apereo.cas.util.RandomUtils;
 
 import java.security.SecureRandom;
 import java.time.ZonedDateTime;
@@ -25,7 +26,7 @@ public final class DigestAuthenticationUtils {
      */
     public static String createNonce() {
         final String fmtDate = ZonedDateTime.now().toString();
-        final SecureRandom rand = new SecureRandom();
+        final SecureRandom rand = RandomUtils.getInstanceNative();
         final Integer randomInt = rand.nextInt();
         return DigestUtils.md5Hex(fmtDate + randomInt);
     }
@@ -59,13 +60,13 @@ public final class DigestAuthenticationUtils {
      * @return the header string
      */
     public static String createAuthenticateHeader(final String realm, final String authMethod, final String nonce) {
-        String header = "";
-        header += "Digest realm=\"" + realm + "\",";
+        final StringBuilder stringBuilder = new StringBuilder("Digest realm=\"").append(realm).append("\",");
         if (StringUtils.isNotBlank(authMethod)) {
-            header += "qop=" + authMethod + ',';
+            stringBuilder.append("qop=").append(authMethod).append(',');
         }
-        header += "nonce=\"" + nonce + "\",";
-        header += "opaque=\"" + createOpaque(realm, nonce) + '"';
-        return header;
+        return stringBuilder.append("nonce=\"").append(nonce)
+                .append("\",opaque=\"").append(createOpaque(realm, nonce))
+                .append('"')
+                .toString();
     }
 }

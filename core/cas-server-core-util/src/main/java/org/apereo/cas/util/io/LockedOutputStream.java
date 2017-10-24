@@ -15,7 +15,7 @@ import java.nio.channels.FileLock;
 public class LockedOutputStream extends BufferedOutputStream {
 
     /** Lock held on file underneath stream. */
-    private FileLock lock;
+    private final FileLock lock;
 
     /** Flag to indicate underlying stream is already closed. */
     private boolean closed;
@@ -32,9 +32,6 @@ public class LockedOutputStream extends BufferedOutputStream {
         this.lock = out.getChannel().lock();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void close() throws IOException {
         if (this.closed) {

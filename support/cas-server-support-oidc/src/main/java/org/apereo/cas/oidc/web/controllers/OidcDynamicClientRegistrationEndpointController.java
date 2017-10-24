@@ -9,16 +9,20 @@ import org.apereo.cas.oidc.OidcConstants;
 import org.apereo.cas.oidc.dynareg.OidcClientRegistrationRequest;
 import org.apereo.cas.oidc.dynareg.OidcClientRegistrationResponse;
 import org.apereo.cas.services.OidcRegisteredService;
+import org.apereo.cas.services.OidcSubjectTypes;
+import org.apereo.cas.services.PairwiseOidcRegisteredServiceUsernameAttributeProvider;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.support.oauth.OAuth20GrantTypes;
 import org.apereo.cas.support.oauth.OAuth20ResponseTypes;
 import org.apereo.cas.support.oauth.profile.OAuth20ProfileScopeToAttributesFilter;
 import org.apereo.cas.support.oauth.validator.OAuth20Validator;
-import org.apereo.cas.support.oauth.web.BaseOAuthWrapperController;
+import org.apereo.cas.support.oauth.web.endpoints.BaseOAuth20Controller;
 import org.apereo.cas.ticket.accesstoken.AccessTokenFactory;
 import org.apereo.cas.ticket.registry.TicketRegistry;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.util.gen.RandomStringGenerator;
 import org.apereo.cas.util.serialization.StringSerializer;
+import org.apereo.cas.web.support.CookieRetrievingCookieGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -29,8 +33,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -44,7 +46,7 @@ import java.util.stream.Collectors;
  * @author Misagh Moayyed
  * @since 5.1.0
  */
-public class OidcDynamicClientRegistrationEndpointController extends BaseOAuthWrapperController {
+public class OidcDynamicClientRegistrationEndpointController extends BaseOAuth20Controller {
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcDynamicClientRegistrationEndpointController.class);
 
     private final StringSerializer<OidcClientRegistrationRequest> clientRegistrationRequestSerializer;
@@ -61,10 +63,11 @@ public class OidcDynamicClientRegistrationEndpointController extends BaseOAuthWr
                                                            final RandomStringGenerator clientIdGenerator,
                                                            final RandomStringGenerator clientSecretGenerator,
                                                            final OAuth20ProfileScopeToAttributesFilter scopeToAttributesFilter,
-                                                           final CasConfigurationProperties casProperties) {
+                                                           final CasConfigurationProperties casProperties,
+                                                           final CookieRetrievingCookieGenerator ticketGrantingTicketCookieGenerator) {
         super(servicesManager, ticketRegistry, validator, accessTokenFactory,
                 principalFactory, webApplicationServiceServiceFactory,
-                scopeToAttributesFilter, casProperties);
+                scopeToAttributesFilter, casProperties, ticketGrantingTicketCookieGenerator);
         this.clientRegistrationRequestSerializer = clientRegistrationRequestSerializer;
         this.clientIdGenerator = clientIdGenerator;
         this.clientSecretGenerator = clientSecretGenerator;
@@ -97,7 +100,13 @@ public class OidcDynamicClientRegistrationEndpointController extends BaseOAuthWr
 
             final OidcRegisteredService registeredService = new OidcRegisteredService();
             registeredService.setName(registrationRequest.getClientName());
-
+            
+            registeredService.setSectorIdentifierUri(registrationRequest.getSectorIdentifierUri());
+            registeredService.setSubjectType(registrationRequest.getSubjectType());
+            if (StringUtils.equalsIgnoreCase(OidcSubjectTypes.PAIRWISE.getType(), registeredService.getSubjectType())) {
+                registeredService.setUsernameAttributeProvider(new PairwiseOidcRegisteredServiceUsernameAttributeProvider());    
+            }
+            
             if (StringUtils.isNotBlank(registrationRequest.getJwksUri())) {
                 registeredService.setJwks(registrationRequest.getJwksUri());
                 registeredService.setSignIdToken(true);
@@ -153,10 +162,10 @@ public class OidcDynamicClientRegistrationEndpointController extends BaseOAuthWr
         clientResponse.setSubjectType("public");
         clientResponse.setTokenEndpointAuthMethod(registrationRequest.getTokenEndpointAuthMethod());
         clientResponse.setClientName(registeredService.getName());
-        clientResponse.setGrantTypes(Arrays.asList(OAuth20GrantTypes.AUTHORIZATION_CODE.name().toLowerCase(),
+        clientResponse.setGrantTypes(CollectionUtils.wrapList(OAuth20GrantTypes.AUTHORIZATION_CODE.name().toLowerCase(),
                 OAuth20GrantTypes.REFRESH_TOKEN.name().toLowerCase()));
-        clientResponse.setRedirectUris(Collections.singletonList(registeredService.getServiceId()));
-        clientResponse.setResponseTypes(Collections.singletonList(OAuth20ResponseTypes.CODE.name().toLowerCase()));
+        clientResponse.setRedirectUris(CollectionUtils.wrap(registeredService.getServiceId()));
+        clientResponse.setResponseTypes(CollectionUtils.wrap(OAuth20ResponseTypes.CODE.name().toLowerCase()));
         return clientResponse;
     }
 }

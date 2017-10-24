@@ -2,10 +2,12 @@ package org.apereo.cas.support.saml;
 
 import net.shibboleth.idp.profile.spring.factory.BasicResourceCredentialFactoryBean;
 import net.shibboleth.idp.profile.spring.factory.BasicX509CredentialFactoryBean;
+import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.util.ResourceUtils;
 import org.cryptacular.util.CertUtil;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.Marshaller;
+import org.opensaml.core.xml.io.Unmarshaller;
 import org.opensaml.saml.metadata.resolver.filter.impl.SignatureValidationFilter;
 import org.opensaml.security.credential.BasicCredential;
 import org.opensaml.security.credential.impl.StaticCredentialResolver;
@@ -21,14 +23,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +46,10 @@ import java.util.List;
  * @since 5.0.0
  */
 public final class SamlUtils {
-    private static Logger LOGGER = LoggerFactory.getLogger(SamlUtils.class);
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SamlUtils.class);
+    private static final int SAML_OBJECT_LOG_ASTERIXLINE_LENGTH = 80;
+    private static final String NAMESPACE_URI = "http://www.w3.org/2000/xmlns/";
 
     private SamlUtils() {
     }
@@ -55,8 +64,43 @@ public final class SamlUtils {
         try (InputStream in = resource.getInputStream()) {
             return CertUtil.readCertificate(in);
         } catch (final Exception e) {
-            throw new RuntimeException("Error reading certificate " + resource, e);
+            throw new IllegalArgumentException("Error reading certificate " + resource, e);
         }
+    }
+
+    /**
+     * Transform saml object into string without indenting the final string.
+     *
+     * @param configBean the config bean
+     * @param samlObject the saml object
+     * @return the string writer
+     * @throws SamlException the saml exception
+     */
+    public static StringWriter transformSamlObject(final OpenSamlConfigBean configBean, final XMLObject samlObject) throws SamlException {
+        return transformSamlObject(configBean, samlObject, false);
+    }
+
+    /**
+     * Transform saml object t.
+     *
+     * @param <T>         the type parameter
+     * @param configBean  the config bean
+     * @param xml         the xml
+     * @return the t
+     */
+    public static <T extends XMLObject> T transformSamlObject(final OpenSamlConfigBean configBean, final String xml) {
+        try (InputStream in = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8))) {
+            final Document document = configBean.getParserPool().parse(in);
+            final Element root = document.getDocumentElement();
+
+            final Unmarshaller marshaller = configBean.getUnmarshallerFactory().getUnmarshaller(root);
+            if (marshaller != null) {
+                return (T) marshaller.unmarshall(root);
+            }
+        } catch (final Exception e) {
+            throw new SamlException(e.getMessage(), e);
+        }
+        return null;
     }
 
     /**
@@ -64,10 +108,12 @@ public final class SamlUtils {
      *
      * @param configBean the config bean
      * @param samlObject the saml object
+     * @param indent     the indent
      * @return the string
      * @throws SamlException the saml exception
      */
-    public static StringWriter transformSamlObject(final OpenSamlConfigBean configBean, final XMLObject samlObject) throws SamlException {
+    public static StringWriter transformSamlObject(final OpenSamlConfigBean configBean, final XMLObject samlObject,
+                                                   final boolean indent) throws SamlException {
         final StringWriter writer = new StringWriter();
         try {
             final Marshaller marshaller = configBean.getMarshallerFactory().getMarshaller(samlObject.getElementQName());
@@ -78,6 +124,11 @@ public final class SamlUtils {
                 final StreamResult result = new StreamResult(writer);
                 final TransformerFactory tf = TransformerFactory.newInstance();
                 final Transformer transformer = tf.newTransformer();
+
+                if (indent) {
+                    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+                    transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+                }
                 transformer.transform(domSource, result);
             }
         } catch (final Exception e) {
@@ -111,7 +162,7 @@ public final class SamlUtils {
         try {
             final Resource resource = resourceLoader.getResource(signatureResourceLocation);
             return buildSignatureValidationFilter(resource);
-        } catch (final Exception e){
+        } catch (final Exception e) {
             LOGGER.debug(e.getMessage(), e);
         }
         return null;
@@ -177,6 +228,7 @@ public final class SamlUtils {
         }
     }
 
+
     /**
      * Log saml object.
      *
@@ -185,6 +237,8 @@ public final class SamlUtils {
      * @throws SamlException the saml exception
      */
     public static void logSamlObject(final OpenSamlConfigBean configBean, final XMLObject samlObject) throws SamlException {
-        LOGGER.debug("Logging [{}]\n[{}]", samlObject.getClass().getName(), transformSamlObject(configBean, samlObject));
+        LOGGER.debug(StringUtils.repeat('*', SAML_OBJECT_LOG_ASTERIXLINE_LENGTH));
+        LOGGER.debug("Logging [{}]\n\n{}\n\n", samlObject.getClass().getName(), transformSamlObject(configBean, samlObject, true));
+        LOGGER.debug(StringUtils.repeat('*', SAML_OBJECT_LOG_ASTERIXLINE_LENGTH));
     }
 }

@@ -1,10 +1,6 @@
 package org.apereo.cas.services;
 
 import org.apereo.cas.authentication.AuthenticationException;
-import org.apereo.cas.configuration.CasConfigurationProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.util.Assert;
 
@@ -23,15 +19,7 @@ public class DefaultVariegatedMultifactorAuthenticationProvider extends Abstract
         implements VariegatedMultifactorAuthenticationProvider, Serializable {
 
     private static final long serialVersionUID = 4789727148134156909L;
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultVariegatedMultifactorAuthenticationProvider.class);
     
-    /**
-     * CAS Properties.
-     */
-    @Autowired
-    protected CasConfigurationProperties casProperties;
-
     private Collection<MultifactorAuthenticationProvider> providers = new HashSet<>();
 
     public DefaultVariegatedMultifactorAuthenticationProvider() {
@@ -56,6 +44,11 @@ public class DefaultVariegatedMultifactorAuthenticationProvider extends Abstract
         final long count = this.providers.stream().filter(p -> p.isAvailable(service)).count();
         return count == providers.size();
     }
+    
+    @Override
+    protected boolean isAvailable() {
+        return true;
+    }
 
     @Override
     public String getId() {
@@ -67,10 +60,6 @@ public class DefaultVariegatedMultifactorAuthenticationProvider extends Abstract
         return findProvider(identifier) != null;
     }
 
-    @Override
-    protected boolean isAvailable() {
-        return true;
-    }
 
     @Override
     public int getOrder() {

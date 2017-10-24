@@ -1,6 +1,7 @@
 package org.apereo.cas.web.config;
 
 import org.apereo.cas.CentralAuthenticationService;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.AuthenticationSystemSupport;
 import org.apereo.cas.authentication.adaptive.AdaptiveAuthenticationPolicy;
 import org.apereo.cas.authentication.principal.ServiceFactory;
@@ -8,12 +9,14 @@ import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.logout.LogoutManager;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.FlowExecutionExceptionResolver;
+import org.apereo.cas.web.flow.SingleSignOnParticipationStrategy;
 import org.apereo.cas.web.flow.FrontChannelLogoutAction;
 import org.apereo.cas.web.flow.GatewayServicesManagementCheck;
 import org.apereo.cas.web.flow.GenerateServiceTicketAction;
 import org.apereo.cas.web.flow.GenericSuccessViewAction;
-import org.apereo.cas.web.flow.InitialAuthenticationAction;
+import org.apereo.cas.web.flow.actions.InitialAuthenticationAction;
 import org.apereo.cas.web.flow.InitialAuthenticationRequestValidationAction;
 import org.apereo.cas.web.flow.InitialFlowSetupAction;
 import org.apereo.cas.web.flow.InitializeLoginAction;
@@ -27,7 +30,6 @@ import org.apereo.cas.web.flow.resolver.CasDelegatingWebflowEventResolver;
 import org.apereo.cas.web.flow.resolver.CasWebflowEventResolver;
 import org.apereo.cas.web.support.ArgumentExtractor;
 import org.apereo.cas.web.support.CookieRetrievingCookieGenerator;
-import org.pac4j.core.config.Config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -35,12 +37,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 import org.springframework.webflow.execution.Action;
-
-import java.util.Collections;
 
 /**
  * This is {@link CasSupportActionsConfiguration}.
@@ -104,40 +103,54 @@ public class CasSupportActionsConfiguration {
     @Qualifier("rankedAuthenticationProviderWebflowEventResolver")
     private CasWebflowEventResolver rankedAuthenticationProviderWebflowEventResolver;
 
+    @Autowired
+    @Qualifier("authenticationServiceSelectionPlan")
+    private AuthenticationServiceSelectionPlan authenticationRequestServiceSelectionStrategies;
+
+    @Autowired
+    @Qualifier("singleSignOnParticipationStrategy")
+    private SingleSignOnParticipationStrategy webflowSingleSignOnParticipationStrategy;
+
     @Bean
+    @RefreshScope
     public HandlerExceptionResolver errorHandlerResolver() {
         return new FlowExecutionExceptionResolver();
     }
 
     @ConditionalOnMissingBean(name = "authenticationViaFormAction")
     @Bean
+    @RefreshScope
     public Action authenticationViaFormAction() {
-        return new InitialAuthenticationAction(initialAuthenticationAttemptWebflowEventResolver, serviceTicketRequestWebflowEventResolver,
+        return new InitialAuthenticationAction(initialAuthenticationAttemptWebflowEventResolver,
+                serviceTicketRequestWebflowEventResolver,
                 adaptiveAuthenticationPolicy);
     }
 
+    @RefreshScope
     @ConditionalOnMissingBean(name = "serviceAuthorizationCheck")
     @Bean
     public Action serviceAuthorizationCheck() {
-        return new ServiceAuthorizationCheck(this.servicesManager);
+        return new ServiceAuthorizationCheck(this.servicesManager, authenticationRequestServiceSelectionStrategies);
     }
 
+    @RefreshScope
     @ConditionalOnMissingBean(name = "sendTicketGrantingTicketAction")
     @Bean
     public Action sendTicketGrantingTicketAction() {
-        return new SendTicketGrantingTicketAction(centralAuthenticationService, servicesManager, ticketGrantingTicketCookieGenerator,
-                authenticationSystemSupport, casProperties.getSso().isRenewedAuthn());
+        return new SendTicketGrantingTicketAction(centralAuthenticationService,
+                ticketGrantingTicketCookieGenerator, webflowSingleSignOnParticipationStrategy);
     }
 
     @RefreshScope
     @Bean
     @ConditionalOnMissingBean(name = "logoutAction")
     public Action logoutAction() {
-        return new LogoutAction(webApplicationServiceFactory, servicesManager, casProperties.getLogout().isFollowServiceRedirects());
+        return new LogoutAction(webApplicationServiceFactory, servicesManager, casProperties.getLogout());
     }
 
     @ConditionalOnMissingBean(name = "initializeLoginAction")
     @Bean
+    @RefreshScope
     public Action initializeLoginAction() {
         return new InitializeLoginAction(servicesManager);
     }
@@ -147,7 +160,7 @@ public class CasSupportActionsConfiguration {
     @Autowired
     @ConditionalOnMissingBean(name = "initialFlowSetupAction")
     public Action initialFlowSetupAction(@Qualifier("argumentExtractor") final ArgumentExtractor argumentExtractor) {
-        return new InitialFlowSetupAction(Collections.singletonList(argumentExtractor),
+        return new InitialFlowSetupAction(CollectionUtils.wrap(argumentExtractor),
                 servicesManager,
                 ticketGrantingTicketCookieGenerator,
                 warnCookieGenerator, casProperties);
@@ -169,6 +182,7 @@ public class CasSupportActionsConfiguration {
     }
 
     @Bean
+    @RefreshScope
     @ConditionalOnMissingBean(name = "generateServiceTicketAction")
     public Action generateServiceTicketAction() {
         return new GenerateServiceTicketAction(authenticationSystemSupport, centralAuthenticationService, ticketRegistrySupport, servicesManager);
@@ -176,6 +190,7 @@ public class CasSupportActionsConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "gatewayServicesManagementCheck")
+    @RefreshScope
     public Action gatewayServicesManagementCheck() {
         return new GatewayServicesManagementCheck(this.servicesManager);
     }
@@ -192,15 +207,16 @@ public class CasSupportActionsConfiguration {
         return new TicketGrantingTicketCheckAction(this.centralAuthenticationService);
     }
 
-    @Lazy
-    @Autowired
     @Bean
-    public Action terminateSessionAction(@Qualifier("config") final Config pac4jSecurityConfig) {
-        return new TerminateSessionAction(centralAuthenticationService, ticketGrantingTicketCookieGenerator, warnCookieGenerator, pac4jSecurityConfig);
+    @RefreshScope
+    public Action terminateSessionAction() {
+        return new TerminateSessionAction(centralAuthenticationService, ticketGrantingTicketCookieGenerator,
+                warnCookieGenerator, casProperties.getLogout());
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "serviceWarningAction")
+    @RefreshScope
     public Action serviceWarningAction() {
         return new ServiceWarningAction(centralAuthenticationService, authenticationSystemSupport, ticketRegistrySupport, warnCookieGenerator);
     }

@@ -2,8 +2,14 @@ package org.apereo.cas.config;
 
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.jpa.JpaConfigDataHolder;
+import org.apereo.cas.configuration.support.JpaBeans;
+import org.apereo.cas.services.AbstractRegisteredService;
 import org.apereo.cas.services.JpaServiceRegistryDaoImpl;
 import org.apereo.cas.services.ServiceRegistryDao;
+import org.reflections.Reflections;
+import org.reflections.scanners.SubTypesScanner;
+import org.reflections.util.ClasspathHelper;
+import org.reflections.util.ConfigurationBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,10 +25,9 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
-
-import static org.apereo.cas.configuration.support.Beans.newHibernateEntityManagerFactoryBean;
-import static org.apereo.cas.configuration.support.Beans.newHibernateJpaVendorAdapter;
-import static org.apereo.cas.configuration.support.Beans.newHickariDataSource;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This this {@link JpaServiceRegistryConfiguration}.
@@ -42,22 +47,23 @@ public class JpaServiceRegistryConfiguration {
     @RefreshScope
     @Bean
     public HibernateJpaVendorAdapter jpaServiceVendorAdapter() {
-        return newHibernateJpaVendorAdapter(casProperties.getJdbc());
+        return JpaBeans.newHibernateJpaVendorAdapter(casProperties.getJdbc());
     }
 
     @Bean
-    public String[] jpaServicePackagesToScan() {
-        return new String[]{
-                "org.apereo.cas.services",
-                "org.apereo.cas.support.oauth.services",
-                "org.apereo.cas.support.saml.services"
-        };
+    public List<String> jpaServicePackagesToScan() {
+        final Reflections reflections =
+                new Reflections(new ConfigurationBuilder()
+                        .setUrls(ClasspathHelper.forPackage("org.apereo.cas"))
+                        .setScanners(new SubTypesScanner(false)));
+        final Set<Class<? extends AbstractRegisteredService>> subTypes = reflections.getSubTypesOf(AbstractRegisteredService.class);
+        return subTypes.stream().map(t -> t.getPackage().getName()).collect(Collectors.toList());
     }
 
     @Lazy
     @Bean
     public LocalContainerEntityManagerFactoryBean serviceEntityManagerFactory() {
-        return newHibernateEntityManagerFactoryBean(
+        return JpaBeans.newHibernateEntityManagerFactoryBean(
                 new JpaConfigDataHolder(
                         jpaServiceVendorAdapter(),
                         "jpaServiceRegistryContext",
@@ -68,8 +74,7 @@ public class JpaServiceRegistryConfiguration {
 
     @Autowired
     @Bean
-    public PlatformTransactionManager transactionManagerServiceReg(@Qualifier("serviceEntityManagerFactory")
-                                                                   final EntityManagerFactory emf) {
+    public PlatformTransactionManager transactionManagerServiceReg(@Qualifier("serviceEntityManagerFactory") final EntityManagerFactory emf) {
         final JpaTransactionManager mgmr = new JpaTransactionManager();
         mgmr.setEntityManagerFactory(emf);
         return mgmr;
@@ -78,11 +83,11 @@ public class JpaServiceRegistryConfiguration {
     @RefreshScope
     @Bean
     public DataSource dataSourceService() {
-        return newHickariDataSource(casProperties.getServiceRegistry().getJpa());
+        return JpaBeans.newDataSource(casProperties.getServiceRegistry().getJpa());
     }
 
-    @Bean(name = {"jpaServiceRegistryDao", "serviceRegistryDao"})
-    public ServiceRegistryDao jpaServiceRegistryDao() {
+    @Bean
+    public ServiceRegistryDao serviceRegistryDao() {
         return new JpaServiceRegistryDaoImpl();
     }
 }

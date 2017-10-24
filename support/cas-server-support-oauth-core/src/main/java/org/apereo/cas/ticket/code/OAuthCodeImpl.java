@@ -1,12 +1,12 @@
 package org.apereo.cas.ticket.code;
 
-import org.apache.commons.lang3.builder.EqualsBuilder;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apereo.cas.authentication.Authentication;
-import org.apereo.cas.ticket.TicketGrantingTicket;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.ticket.AbstractTicket;
 import org.apereo.cas.ticket.ExpirationPolicy;
-import org.apereo.cas.ticket.Ticket;
+import org.apereo.cas.ticket.TicketGrantingTicket;
+import org.apereo.cas.ticket.TicketGrantingTicketImpl;
 import org.apereo.cas.ticket.proxy.ProxyGrantingTicket;
 import org.springframework.util.Assert;
 
@@ -15,6 +15,7 @@ import javax.persistence.DiscriminatorColumn;
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
 import javax.persistence.Lob;
+import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
 /**
@@ -24,21 +25,32 @@ import javax.persistence.Table;
  * @since 5.0.0
  */
 @Entity
-@Table(name="OAUTH_TOKENS")
-@DiscriminatorColumn(name="TYPE")
+@Table(name = "OAUTH_TOKENS")
+@DiscriminatorColumn(name = "TYPE")
 @DiscriminatorValue(OAuthCode.PREFIX)
 public class OAuthCodeImpl extends AbstractTicket implements OAuthCode {
 
     private static final long serialVersionUID = -8072724186202305800L;
 
-    /** The service this ticket is valid for. */
+    /**
+     * The {@link TicketGrantingTicket} this is associated with.
+     */
+    @ManyToOne(targetEntity = TicketGrantingTicketImpl.class)
+    @JsonProperty("grantingTicket")
+    private TicketGrantingTicket ticketGrantingTicket;
+
+    /**
+     * The service this ticket is valid for.
+     */
     @Lob
-    @Column(name="SERVICE", nullable=false)
+    @Column(name = "SERVICE", nullable = false)
     private Service service;
 
-    /** The authenticated object for which this ticket was generated for. */
+    /**
+     * The authenticated object for which this ticket was generated for.
+     */
     @Lob
-    @Column(name="AUTHENTICATION", nullable=false, length = 1000000)
+    @Column(name = "AUTHENTICATION", nullable = false, length = 1000000)
     private Authentication authentication;
 
     /**
@@ -51,20 +63,22 @@ public class OAuthCodeImpl extends AbstractTicket implements OAuthCode {
     /**
      * Constructs a new OAuth code with unique id for a service and authentication.
      *
-     * @param id the unique identifier for the ticket.
-     * @param service the service this ticket is for.
-     * @param authentication the authentication.
-     * @param expirationPolicy the expiration policy.
+     * @param id                   the unique identifier for the ticket.
+     * @param service              the service this ticket is for.
+     * @param authentication       the authentication.
+     * @param expirationPolicy     the expiration policy.
+     * @param ticketGrantingTicket the ticket granting ticket
      * @throws IllegalArgumentException if the service or authentication are null.
      */
     public OAuthCodeImpl(final String id, final Service service, final Authentication authentication,
-                         final ExpirationPolicy expirationPolicy) {
+                         final ExpirationPolicy expirationPolicy, final TicketGrantingTicket ticketGrantingTicket) {
         super(id, expirationPolicy);
 
         Assert.notNull(service, "service cannot be null");
         Assert.notNull(authentication, "authentication cannot be null");
         this.service = service;
         this.authentication = authentication;
+        this.ticketGrantingTicket = ticketGrantingTicket;
     }
 
     @Override
@@ -84,25 +98,6 @@ public class OAuthCodeImpl extends AbstractTicket implements OAuthCode {
     }
 
     @Override
-    public boolean equals(final Object object) {
-        if (object == null) {
-            return false;
-        }
-        if (object == this) {
-            return true;
-        }
-        if (!(object instanceof OAuthCode)) {
-            return false;
-        }
-
-        final Ticket ticket = (Ticket) object;
-
-        return new EqualsBuilder()
-                .append(ticket.getId(), this.getId())
-                .isEquals();
-    }
-
-    @Override
     public ProxyGrantingTicket grantProxyGrantingTicket(
             final String id, final Authentication authentication,
             final ExpirationPolicy expirationPolicy) {
@@ -116,6 +111,11 @@ public class OAuthCodeImpl extends AbstractTicket implements OAuthCode {
 
     @Override
     public TicketGrantingTicket getGrantingTicket() {
-        return null;
+        return this.ticketGrantingTicket;
+    }
+
+    @Override
+    public String getPrefix() {
+        return OAuthCode.PREFIX;
     }
 }

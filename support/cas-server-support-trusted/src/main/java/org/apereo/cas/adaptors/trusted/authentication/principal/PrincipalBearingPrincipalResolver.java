@@ -2,7 +2,10 @@ package org.apereo.cas.adaptors.trusted.authentication.principal;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apereo.cas.authentication.Credential;
+import org.apereo.cas.authentication.principal.Principal;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
 import org.apereo.cas.authentication.principal.resolvers.PersonDirectoryPrincipalResolver;
+import org.apereo.services.persondir.IPersonAttributeDao;
 
 /**
  * Extracts the Principal out of PrincipalBearingCredential. It is very simple
@@ -14,8 +17,18 @@ import org.apereo.cas.authentication.principal.resolvers.PersonDirectoryPrincipa
  */
 public class PrincipalBearingPrincipalResolver extends PersonDirectoryPrincipalResolver {
 
+    public PrincipalBearingPrincipalResolver() {
+    }
+
+    public PrincipalBearingPrincipalResolver(final IPersonAttributeDao attributeRepository,
+                                             final PrincipalFactory principalFactory,
+                                             final boolean returnNullIfNoAttributes,
+                                             final String principalAttributeName) {
+        super(attributeRepository, principalFactory, returnNullIfNoAttributes, principalAttributeName);
+    }
+
     @Override
-    protected String extractPrincipalId(final Credential credential) {
+    protected String extractPrincipalId(final Credential credential, final Principal currentPrincipal) {
         return ((PrincipalBearingCredential) credential).getPrincipal().getId();
     }
 

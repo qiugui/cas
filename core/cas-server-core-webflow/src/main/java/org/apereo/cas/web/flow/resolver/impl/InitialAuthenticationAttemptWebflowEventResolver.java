@@ -1,8 +1,10 @@
 package org.apereo.cas.web.flow.resolver.impl;
 
 import org.apereo.cas.CentralAuthenticationService;
+import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.AuthenticationException;
 import org.apereo.cas.authentication.AuthenticationResultBuilder;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.AuthenticationSystemSupport;
 import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.principal.Service;
@@ -12,7 +14,7 @@ import org.apereo.cas.services.RegisteredServiceAccessStrategyUtils;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.ticket.AbstractTicketException;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
-import org.apereo.cas.validation.AuthenticationRequestServiceSelectionStrategy;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.flow.CasWebflowConstants;
 import org.apereo.cas.web.flow.resolver.CasDelegatingWebflowEventResolver;
 import org.apereo.cas.web.flow.resolver.CasWebflowEventResolver;
@@ -26,7 +28,6 @@ import org.springframework.webflow.execution.RequestContext;
 
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -49,11 +50,13 @@ public class InitialAuthenticationAttemptWebflowEventResolver extends AbstractCa
 
     public InitialAuthenticationAttemptWebflowEventResolver(final AuthenticationSystemSupport authenticationSystemSupport,
                                                             final CentralAuthenticationService centralAuthenticationService,
-                                                            final ServicesManager servicesManager, final TicketRegistrySupport ticketRegistrySupport,
+                                                            final ServicesManager servicesManager,
+                                                            final TicketRegistrySupport ticketRegistrySupport,
                                                             final CookieGenerator warnCookieGenerator,
-                                                            final List<AuthenticationRequestServiceSelectionStrategy> authenticationSelectionStrategies,
+                                                            final AuthenticationServiceSelectionPlan authenticationSelectionStrategies,
                                                             final MultifactorAuthenticationProviderSelector selector) {
-        super(authenticationSystemSupport, centralAuthenticationService, servicesManager, ticketRegistrySupport, warnCookieGenerator,
+        super(authenticationSystemSupport, centralAuthenticationService,
+                servicesManager, ticketRegistrySupport, warnCookieGenerator,
                 authenticationSelectionStrategies, selector);
     }
 
@@ -61,47 +64,59 @@ public class InitialAuthenticationAttemptWebflowEventResolver extends AbstractCa
     public Set<Event> resolveInternal(final RequestContext context) {
         try {
             final Credential credential = getCredentialFromContext(context);
-            if (credential != null) {
-                final AuthenticationResultBuilder builder =
-                        this.authenticationSystemSupport.handleInitialAuthenticationTransaction(credential);
+            final Service service = WebUtils.getService(context);
 
+            if (credential != null) {
+                final AuthenticationResultBuilder builder = this.authenticationSystemSupport.handleInitialAuthenticationTransaction(service, credential);
                 if (builder.getInitialAuthentication().isPresent()) {
                     WebUtils.putAuthenticationResultBuilder(builder, context);
                     WebUtils.putAuthentication(builder.getInitialAuthentication().get(), context);
                 }
             }
-            final Service service = WebUtils.getService(context);
-            if (service != null) {
 
-                LOGGER.debug("Locating service [{}] in service registry to determine authentication policy", service);
-                final RegisteredService registeredService = this.servicesManager.findServiceBy(service);
-                RegisteredServiceAccessStrategyUtils.ensureServiceAccessIsAllowed(service, registeredService);
-
-                final Set<Event> resolvedEvents = resolveCandidateAuthenticationEvents(context, service, registeredService);
-                if (!resolvedEvents.isEmpty()) {
-                    putResolvedEventsAsAttribute(context, resolvedEvents);
-                    final Event finalResolvedEvent = this.selectiveResolver.resolveSingle(context);
-                    if (finalResolvedEvent != null) {
-                        return Collections.singleton(finalResolvedEvent);
-                    }
+            final RegisteredService registeredService = determineRegisteredServiceForEvent(context, service);
+            LOGGER.debug("Attempting to resolve candidate authentication events for service [{}]", service);
+            final Set<Event> resolvedEvents = resolveCandidateAuthenticationEvents(context, service, registeredService);
+            if (!resolvedEvents.isEmpty()) {
+                LOGGER.debug("The set of authentication events resolved for [{}] are [{}]. Beginning to select the final event...", service, resolvedEvents);
+                putResolvedEventsAsAttribute(context, resolvedEvents);
+                final Event finalResolvedEvent = this.selectiveResolver.resolveSingle(context);
+                LOGGER.debug("The final authentication event resolved for [{}] is [{}]", service, finalResolvedEvent);
+                if (finalResolvedEvent != null) {
+                    return CollectionUtils.wrapSet(finalResolvedEvent);
                 }
             }
+
 
             final AuthenticationResultBuilder builder = WebUtils.getAuthenticationResultBuilder(context);
             if (builder == null) {
                 throw new IllegalArgumentException("No authentication result builder can be located in the context");
             }
-            return Collections.singleton(grantTicketGrantingTicketToAuthenticationResult(context, builder, service));
+            return CollectionUtils.wrapSet(grantTicketGrantingTicketToAuthenticationResult(context, builder, service));
         } catch (final Exception e) {
             Event event = returnAuthenticationExceptionEventIfNeeded(e);
             if (event == null) {
                 LOGGER.warn(e.getMessage(), e);
                 event = newEvent(CasWebflowConstants.TRANSITION_ID_ERROR, e);
             }
-            final HttpServletResponse response = WebUtils.getHttpServletResponse(context);
+            final HttpServletResponse response = WebUtils.getHttpServletResponseFromExternalWebflowContext(context);
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            return Collections.singleton(event);
+            return CollectionUtils.wrapSet(event);
         }
+    }
+
+    private RegisteredService determineRegisteredServiceForEvent(final RequestContext context, final Service service) {
+        RegisteredService registeredService = null;
+        if (service != null) {
+            LOGGER.debug("Locating service [{}] in service registry to determine authentication policy", service);
+            registeredService = this.servicesManager.findServiceBy(service);
+
+            LOGGER.debug("Locating authentication event in the request context...");
+            final Authentication authn = WebUtils.getAuthentication(context);
+            LOGGER.debug("Enforcing access strategy policies for registered service [{}] and principal [{}]", registeredService, authn.getPrincipal());
+            RegisteredServiceAccessStrategyUtils.ensurePrincipalAccessIsAllowedForService(service, registeredService, authn);
+        }
+        return registeredService;
     }
 
     /**
@@ -112,10 +127,9 @@ public class InitialAuthenticationAttemptWebflowEventResolver extends AbstractCa
      * @param registeredService the registered service
      * @return the set
      */
-    protected Set<Event> resolveCandidateAuthenticationEvents(final RequestContext context,
-                                                              final Service service, final RegisteredService registeredService) {
-        return this.orderedResolvers.stream()
-                .filter(Objects::nonNull)
+    protected Set<Event> resolveCandidateAuthenticationEvents(final RequestContext context, final Service service, final RegisteredService registeredService) {
+        return this.orderedResolvers
+                .stream()
                 .map(resolver -> resolver.resolveSingle(context))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
@@ -123,12 +137,16 @@ public class InitialAuthenticationAttemptWebflowEventResolver extends AbstractCa
 
     @Override
     public void addDelegate(final CasWebflowEventResolver r) {
-        orderedResolvers.add(r);
+        if (r != null) {
+            orderedResolvers.add(r);
+        }
     }
 
     @Override
     public void addDelegate(final CasWebflowEventResolver r, final int index) {
-        orderedResolvers.add(index, r);
+        if (r != null) {
+            orderedResolvers.add(index, r);
+        }
     }
 
     public void setSelectiveResolver(final CasWebflowEventResolver r) {

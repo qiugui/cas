@@ -42,7 +42,7 @@ public class AbstractPoolMonitorTests {
     }
 
     @Test
-    public void verifyObserveWarn() throws Exception {
+    public void verifyObserveWarn() {
         final AbstractPoolMonitor monitor = new AbstractPoolMonitor("monitor", executor, 500) {
             @Override
             protected StatusCode checkPool() throws Exception {
@@ -67,11 +67,11 @@ public class AbstractPoolMonitorTests {
     }
 
     @Test
-    public void verifyObserveError() throws Exception {
+    public void verifyObserveError() {
         final AbstractPoolMonitor monitor = new AbstractPoolMonitor("monitor", executor, 500) {
             @Override
-            protected StatusCode checkPool() throws Exception {
-                throw new RuntimeException("Pool check failed due to rogue penguins.");
+            protected StatusCode checkPool() {
+                throw new IllegalArgumentException("Pool check failed due to rogue penguins.");
             }
 
             @Override

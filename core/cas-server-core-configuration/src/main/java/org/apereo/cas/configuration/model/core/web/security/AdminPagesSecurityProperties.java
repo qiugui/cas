@@ -4,10 +4,12 @@ import org.apereo.cas.configuration.model.core.authentication.PasswordEncoderPro
 import org.apereo.cas.configuration.model.support.jpa.AbstractJpaProperties;
 import org.apereo.cas.configuration.model.support.ldap.AbstractLdapAuthenticationProperties;
 import org.apereo.cas.configuration.model.support.ldap.LdapAuthorizationProperties;
+import org.apereo.cas.configuration.support.RequiresModule;
+import org.apereo.cas.util.CollectionUtils;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.core.io.Resource;
 
-import java.util.Arrays;
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -16,16 +18,70 @@ import java.util.List;
  * @author Misagh Moayyed
  * @since 5.0.0
  */
-public class AdminPagesSecurityProperties {
-    private String ip = "127\\.0\\.0\\.1|0:0:0:0:0:0:0:1";
-    private List<String> adminRoles = Arrays.asList("ROLE_ADMIN", "ROLE_ACTUATOR");
+@RequiresModule(name = "cas-server-core-web", automated = true)
+public class AdminPagesSecurityProperties implements Serializable {
+    private static final long serialVersionUID = 9129787932447507179L;
+    /**
+     * The IP address pattern that can control access to the admin status endpoints.
+     */
+    private String ip = "a^";
+
+    /**
+     * Roles that are required for access to the admin status endpoint
+     * in the event that access is controlled via external authentication
+     * means such as Spring Security's authentication providers.
+     */
+    private List<String> adminRoles = CollectionUtils.wrapList("ROLE_ADMIN", "ROLE_ACTUATOR");
+
+    /**
+     * CAS server login URL to use. 
+     * When defined, will begin to protect the access status endpoints via CAS itself.
+     */
     private String loginUrl;
+    /**
+     * The service parameter for the admin status endpoint. 
+     * This is typically set to the dashboard url as the initial starting point
+     * for the redirect.
+     */
     private String service;
+
+    /**
+     * List of users allowed access to the admin status endpoint
+     * provided CAS is controlling access to the status endpoint.
+     * If you decide to protect other administrative endpoints via CAS itself, 
+     * you will need to provide a reference to the list of authorized users in the CAS configuration. 
+     */
     private Resource users;
+
+    /**
+     * Whether Spring Boot's actuator endpoints should show up on the dashboard.
+     */
     private boolean actuatorEndpointsEnabled;
 
+    /**
+     * Enable Spring Security's JDBC authentication provider
+     * for admin status authorization and access control.
+     */
     private Jdbc jdbc = new Jdbc();
+    /**
+     * Enable Spring Security's LDAP authentication provider
+     * for admin status authorization and access control.
+     */
     private Ldap ldap = new Ldap();
+
+    /**
+     * Enable Spring Security's JAAS authentication provider
+     * for admin status authorization and access control.
+     */
+    private Jaas jaas = new Jaas();
+
+    public Jaas getJaas() {
+        return jaas;
+    }
+
+    public void setJaas(final Jaas jaas) {
+        this.jaas = jaas;
+    }
 
     public Jdbc getJdbc() {
         return jdbc;
@@ -91,7 +147,63 @@ public class AdminPagesSecurityProperties {
         this.ldap = ldap;
     }
 
-    public class Ldap extends AbstractLdapAuthenticationProperties {
+    public static class Jaas implements Serializable {
+        private static final long serialVersionUID = -3024678577827371641L;
+        /**
+         * JAAS login resource file.
+         */
+        private Resource loginConfig;
+        /**
+         * If set, a call to {@code Configuration#refresh()} 
+         * will be made by {@code #configureJaas(Resource)} method.
+         */
+        private boolean refreshConfigurationOnStartup = true;
+
+        /**
+         * The login context name should coincide with a given index in the login config specified.
+         * This name is used as the index to the configuration specified in the login config property.
+         * 
+<pre>
+JAASTest {
+    org.springframework.security.authentication.jaas.TestLoginModule required;
+};
+</pre>
+         In the above example, {@code JAASTest} should be set as the context name.
+         */
+        private String loginContextName;
+
+        public Resource getLoginConfig() {
+            return loginConfig;
+        }
+
+        public void setLoginConfig(final Resource loginConfig) {
+            this.loginConfig = loginConfig;
+        }
+
+        public boolean isRefreshConfigurationOnStartup() {
+            return refreshConfigurationOnStartup;
+        }
+
+        public void setRefreshConfigurationOnStartup(final boolean refreshConfigurationOnStartup) {
+            this.refreshConfigurationOnStartup = refreshConfigurationOnStartup;
+        }
+
+        public String getLoginContextName() {
+            return loginContextName;
+        }
+
+        public void setLoginContextName(final String loginContextName) {
+            this.loginContextName = loginContextName;
+        }
+    }
+    
+    public static class Ldap extends AbstractLdapAuthenticationProperties {
+        private static final long serialVersionUID = -7333244539096172557L;
+
+        /**
+         * Control authorization settings via LDAP
+         * after ldap authentication.
+         */
         @NestedConfigurationProperty
         private LdapAuthorizationProperties ldapAuthz = new LdapAuthorizationProperties();
 
@@ -111,10 +223,24 @@ public class AdminPagesSecurityProperties {
         }
     }
 
-    public class Jdbc extends AbstractJpaProperties {
-        private String rolePrefix;
-        private String query;
+    public static class Jdbc extends AbstractJpaProperties {
+        private static final long serialVersionUID = 2625666117528467867L;
 
+        /**
+         * Prefix to add to the role.
+         */
+        private String rolePrefix;
+
+        /**
+         * Query to execute in order to authenticate users via JDBC.
+         * Example:
+         * {@code SELECT username,password,enabled FROM users WHERE username=?}
+         */
+        private String query;
+        
+        /**
+         * Password encoder properties.
+         */
         @NestedConfigurationProperty
         private PasswordEncoderProperties passwordEncoder = new PasswordEncoderProperties();
 

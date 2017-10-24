@@ -1,11 +1,20 @@
 description = "Apereo CAS DuoSecurity Support"
+
+repositories {
+    maven { url "https://dl.bintray.com/uniconiam/maven" }
+    jcenter()
+}
+
 dependencies {
-    compile libraries.duojava
-    compile libraries.duojavaauth
-    compile libraries.jackson
-    compile libraries.spring
-    compile project(":core:cas-server-core-authentication")
-    compile project(":core:cas-server-core-webflow")
-    compile project(":support:cas-server-support-duo-core")
+    api project(":api:cas-server-core-api-webflow")
+    api project(":api:cas-server-core-api")
+    
+    implementation project(":core:cas-server-core-authentication")
+    implementation project(":core:cas-server-core-webflow")
+    implementation project(":core:cas-server-core-configuration")
+    implementation project(":core:cas-server-core-util")
+    implementation project(":core:cas-server-core-web")
+    implementation project(":support:cas-server-support-duo-core")
+    
     compileOnly project(":support:cas-server-support-trusted-mfa")
 }

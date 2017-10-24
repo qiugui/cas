@@ -3,10 +3,11 @@ package org.apereo.cas.ticket;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apereo.cas.authentication.Authentication;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.ticket.proxy.ProxyGrantingTicket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
 import javax.persistence.Column;
@@ -32,7 +33,8 @@ import javax.persistence.Table;
 @DiscriminatorValue(ServiceTicket.PREFIX)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY)
 public class ServiceTicketImpl extends AbstractTicket implements ServiceTicket {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceTicketImpl.class);
+    
     private static final long serialVersionUID = -4223319704861765405L;
 
     /**
@@ -120,41 +122,20 @@ public class ServiceTicketImpl extends AbstractTicket implements ServiceTicket {
         return serviceToValidate.matches(this.service);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean equals(final Object object) {
-        if (object == null) {
-            return false;
-        }
-        if (object == this) {
-            return true;
-        }
-        if (!(object instanceof ServiceTicket)) {
-            return false;
-        }
-
-        final Ticket ticket = (Ticket) object;
-
-        return new EqualsBuilder()
-                .append(ticket.getId(), this.getId())
-                .isEquals();
-    }
-
     @Override
     public ProxyGrantingTicket grantProxyGrantingTicket(
             final String id, final Authentication authentication,
             final ExpirationPolicy expirationPolicy) throws AbstractTicketException {
         synchronized (this) {
             if (this.grantedTicketAlready) {
-                throw new InvalidProxyGrantingTicketForServiceTicket(this.service);
+                LOGGER.warn("Service ticket [{}] issued for service [{}] has already allotted a proxy-granting ticket", getId(), this.service.getId());
+                throw new InvalidProxyGrantingTicketForServiceTicketException(this.service);
             }
             this.grantedTicketAlready = Boolean.TRUE;
         }
         final ProxyGrantingTicket pgt = new ProxyGrantingTicketImpl(id, this.service,
                 this.getGrantingTicket(), authentication, expirationPolicy);
-        getGrantingTicket().getProxyGrantingTickets().add(pgt);
+        getGrantingTicket().getProxyGrantingTickets().put(pgt.getId(), this.service);
         return pgt;
     }
 
@@ -174,5 +155,10 @@ public class ServiceTicketImpl extends AbstractTicket implements ServiceTicket {
 
     public void setService(final Service service) {
         this.service = service;
+    }
+
+    @Override
+    public String getPrefix() {
+        return ServiceTicket.PREFIX;
     }
 }

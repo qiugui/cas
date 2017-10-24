@@ -2,8 +2,6 @@ package org.apereo.cas.adaptors.ldap;
 
 import org.apereo.cas.util.ldap.uboundid.InMemoryTestLdapDirectoryServer;
 import org.ldaptive.LdapEntry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
@@ -17,27 +15,29 @@ import java.util.Collection;
  * @since 4.1.0
  */
 public abstract class AbstractLdapTests {
+
     protected static InMemoryTestLdapDirectoryServer DIRECTORY;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLdapTests.class);
-    
-    public static synchronized void initDirectoryServer(final InputStream ldifFile) throws IOException {
+    public static synchronized void initDirectoryServer(final InputStream ldifFile,
+                                                        final int port) throws IOException {
         try {
             final boolean createInstance = DIRECTORY == null || !DIRECTORY.isAlive();
             if (createInstance) {
                 final ClassPathResource properties = new ClassPathResource("ldap.properties");
                 final ClassPathResource schema = new ClassPathResource("schema/standard-ldap.schema");
-                DIRECTORY = new InMemoryTestLdapDirectoryServer(properties.getInputStream(),
-                        ldifFile,
-                        schema.getInputStream());
+                DIRECTORY = new InMemoryTestLdapDirectoryServer(properties.getInputStream(), ldifFile, schema.getInputStream(), port);
             }
         } catch (final Exception e) {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 
+    public static void initDirectoryServer(final int port) throws IOException {
+        initDirectoryServer(new ClassPathResource("ldif/ldap-base.ldif").getInputStream(), port);
+    }
+
     public static void initDirectoryServer() throws IOException {
-        initDirectoryServer(new ClassPathResource("ldif/ldap-base.ldif").getInputStream());
+        initDirectoryServer(1389);
     }
 
     protected static InMemoryTestLdapDirectoryServer getDirectory() {

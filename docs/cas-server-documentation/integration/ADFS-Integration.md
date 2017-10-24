@@ -40,7 +40,7 @@ CAS Overlay to be able to resolve dependencies:
 Adjust and provide settings for the ADFS instance, and make sure you have obtained the ADFS signing certificate
 and made it available to CAS at a location that can be resolved at runtime.
 
-To see the relevant list of CAS properties, please [review this guide](../installation/Configuration-Properties.html#ws-fed-authentication).
+To see the relevant list of CAS properties, please [review this guide](../installation/Configuration-Properties.html#ws-fed-delegated-authentication).
 
 ## Encrypted Assertions
 
@@ -69,7 +69,16 @@ to put together an implementation of `WsFederationAttributeMutator` that changes
 ```java
 package org.apereo.cas.support.wsfederation;
 
-@Component("wsfedAttributeMutator")
+@Configuration("myWsFedConfiguration")
+@EnableConfigurationProperties(CasConfigurationProperties.class)
+public class MyWsFedConfiguration {
+
+  @Bean
+  public WsFederationAttributeMutator wsfedAttributeMutator() {
+      return new WsFederationAttributeMutatorImpl(...);
+  }
+}
+
 public class WsFederationAttributeMutatorImpl implements WsFederationAttributeMutator {
     public void modifyAttributes(...) {
         ...

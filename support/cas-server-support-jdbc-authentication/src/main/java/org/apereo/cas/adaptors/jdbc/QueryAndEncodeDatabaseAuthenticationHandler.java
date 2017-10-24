@@ -1,22 +1,24 @@
 package org.apereo.cas.adaptors.jdbc;
 
 import org.apache.commons.lang3.BooleanUtils;
-import org.apereo.cas.authentication.HandlerResult;
-import org.apereo.cas.authentication.PreventedException;
-import org.apereo.cas.authentication.UsernamePasswordCredential;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.shiro.crypto.hash.ConfigurableHashService;
 import org.apache.shiro.crypto.hash.DefaultHashService;
 import org.apache.shiro.crypto.hash.HashRequest;
 import org.apache.shiro.util.ByteSource;
+import org.apereo.cas.authentication.HandlerResult;
+import org.apereo.cas.authentication.PreventedException;
+import org.apereo.cas.authentication.UsernamePasswordCredential;
 import org.apereo.cas.authentication.exceptions.AccountDisabledException;
 import org.apereo.cas.authentication.exceptions.AccountPasswordMustChangeException;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 
 import javax.security.auth.login.AccountNotFoundException;
 import javax.security.auth.login.FailedLoginException;
+import javax.sql.DataSource;
 import java.security.GeneralSecurityException;
 import java.util.Map;
 
@@ -96,15 +98,13 @@ public class QueryAndEncodeDatabaseAuthenticationHandler extends AbstractJdbcUse
      */
     protected String staticSalt;
 
-    public QueryAndEncodeDatabaseAuthenticationHandler(final String algorithmName,
-                                                       final String sql,
-                                                       final String passwordFieldName,
-                                                       final String saltFieldName,
-                                                       final String expiredFieldName,
-                                                       final String disabledFieldName,
-                                                       final String numberOfIterationsFieldName,
-                                                       final long numberOfIterations,
+    public QueryAndEncodeDatabaseAuthenticationHandler(final String name, final ServicesManager servicesManager, final PrincipalFactory principalFactory,
+                                                       final Integer order, final DataSource dataSource,
+                                                       final String algorithmName, final String sql, final String passwordFieldName,
+                                                       final String saltFieldName, final String expiredFieldName, final String disabledFieldName,
+                                                       final String numberOfIterationsFieldName, final long numberOfIterations,
                                                        final String staticSalt) {
+        super(name, servicesManager, principalFactory, order, dataSource);
         this.algorithmName = algorithmName;
         this.sql = sql;
         this.passwordFieldName = passwordFieldName;
@@ -141,7 +141,7 @@ public class QueryAndEncodeDatabaseAuthenticationHandler extends AbstractJdbcUse
             }
             if (StringUtils.isNotBlank(this.disabledFieldName)){
                 final Object dbDisabled = values.get(this.disabledFieldName);
-                if (dbDisabled != null && (Boolean.TRUE.equals(BooleanUtils.toBoolean(dbDisabled.toString())) || dbDisabled.equals(Integer.valueOf(1)))){
+                if (dbDisabled != null && (Boolean.TRUE.equals(BooleanUtils.toBoolean(dbDisabled.toString())) || dbDisabled.equals(1))){
                     throw new AccountDisabledException("Account has been disabled");
                 }
             }
@@ -180,7 +180,7 @@ public class QueryAndEncodeDatabaseAuthenticationHandler extends AbstractJdbcUse
 
         hashService.setHashIterations(numOfIterations.intValue());
         if (!values.containsKey(this.saltFieldName)) {
-            throw new RuntimeException("Specified field name for salt does not exist in the results");
+            throw new IllegalArgumentException("Specified field name for salt does not exist in the results");
         }
 
         final String dynaSalt = values.get(this.saltFieldName).toString();

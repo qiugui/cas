@@ -9,35 +9,53 @@ CAS can act as a SAML2 identity provider accepting authentication requests and p
 
 If you intend to allow CAS to delegate authentication to an external SAML2 identity provider, you need to [review this guide](../integration/Delegate-Authentication.html).
 
-<div class="alert alert-info"><strong>SAML Specification</strong><p>This document solely focuses on what one might do to turn on
-SAML2 support inside CAS. It is not to describe/explain the numerous characteristics of the SAML2 protocol itself. If you are unsure about the
-concepts referred to on this page,
-please start with reviewing the <a href="http://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0.html">SAML2 Specification</a>.</p></div>
+<div class="alert alert-info"><strong>SAML Specification</strong><p>This document solely focuses on what one might do to turn on SAML2 support inside CAS. It is not to describe/explain the numerous characteristics of the SAML2 protocol itself. If you are unsure about the concepts referred to on this page, please start with reviewing the <a href="http://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0.html">SAML2 Specification</a>.</p></div>
+
+## Federation Interop Evaluation
+
+The CAS project strives to conform to the [SAML V2.0 Implementation Profile for Federation Interoperability](https://kantarainitiative.github.io/SAMLprofiles/fedinterop.html). An evaluation of the requirements against the current CAS release is available [here](https://docs.google.com/spreadsheets/d/1NYN5n6AaNxz0UxwkzIDuXMYL1JUKNZZlSzLZEDUw4Aw/edit?usp=sharing). It is recommended that you view, evaluate and comment on functionality that is currently either absent or marked questionable where verification is needed.
 
 ## SAML Endpoints
 
 The following CAS endpoints respond to supported SAML2 profiles:
 
-- `/cas/idp/profile/SAML2/Redirect/SSO`
-- `/cas/idp/profile/SAML2/POST/SSO`
-- `/cas/idp/profile/SAML2/POST/SLO`
-- `/cas/idp/profile/SAML2/Unsolicited/SSO`
-- `/cas/idp/profile/SAML2/SOAP/ECP`
+- `/idp/profile/SAML2/Redirect/SSO`
+- `/idp/profile/SAML2/POST/SSO`
+- `/idp/profile/SAML2/POST-SimpleSign/SSO`
+- `/idp/profile/SAML2/POST/SLO`
+- `/idp/profile/SAML2/Redirect/SLO`
+- `/idp/profile/SAML2/Unsolicited/SSO`
+- `/idp/profile/SAML2/SOAP/ECP`
+- `/idp/profile/SAML2/SOAP/AttributeQuery`
+- `/idp/profile/SAML1/SOAP/ArtifactResolution`
+
+## Unsolicited SSO
 
 SAML2 IdP `Unsolicited/SSO` profile supports the following parameters:
 
 | Parameter                         | Description
-|-----------------------------------|------------------------------------------
+|-----------------------------------|-----------------------------------------------------------------
 | `providerId`                      | Required. Entity ID of the service provider.
 | `shire`                           | Optional. Response location (ACS URL) of the service provider.
 | `target`                          | Optional. Relay state.
 | `time`                            | Optional. Skew the authentication request.
 
+## Attribute Queries
+
+In order to allow CAS to support and respond to attribute queries, you need to make sure the generated metadata has
+the `AttributeAuthorityDescriptor` element enabled, with protocol support enabled for `urn:oasis:names:tc:SAML:2.0:protocol`
+and relevant binding that corresponds to the CAS endpoint(s). You also must ensure the `AttributeAuthorityDescriptor` tag lists all
+`KeyDescriptor` elements and certificates that are used for signing as well as authentication, specially if the SOAP client of the service provider needs to cross-compare the certificate behind the CAS endpoint with what is defined for the `AttributeAuthorityDescriptor`. CAS by default will always use its own signing certificate for signing of the responses generated as a result of an attribute query.
+
+Also note that support for attribute queries need to be explicitly enabled and the behavior is off by default, given it imposes a burden on CAS and the underlying ticket registry to keep track of attributes and responses as tickets and have them be later used and looked up.
+
+To see the relevant list of CAS properties, please [review this guide](Configuration-Properties.html#saml-idp).
+
 ## IdP Metadata
 
 The following CAS endpoints handle the generation of SAML2 metadata:
 
-- `/cas/idp/metadata`
+- `/idp/metadata`
 
 This endpoint will display the CAS IdP SAML2 metadata upon receiving a GET request. If metadata is already available and generated,
 it will be displayed. If metadata is absent, one will be generated automatically.
@@ -47,7 +65,7 @@ Here is a generated metadata file as an example:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<EntityDescriptor  xmlns="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
                 xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:xml="http://www.w3.org/XML/1998/namespace"
                 xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" entityID="ENTITY_ID">
     <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
@@ -56,16 +74,16 @@ Here is a generated metadata file as an example:
         </Extensions>
         <KeyDescriptor use="signing">
             <ds:KeyInfo>
-                    <ds:X509Data>
-                        <ds:X509Certificate>...</ds:X509Certificate>
-                    </ds:X509Data>
+              <ds:X509Data>
+                  <ds:X509Certificate>...</ds:X509Certificate>
+              </ds:X509Data>
             </ds:KeyInfo>
         </KeyDescriptor>
         <KeyDescriptor use="encryption">
             <ds:KeyInfo>
-                    <ds:X509Data>
-                        <ds:X509Certificate>...</ds:X509Certificate>
-                    </ds:X509Data>
+              <ds:X509Data>
+                  <ds:X509Certificate>...</ds:X509Certificate>
+              </ds:X509Data>
             </ds:KeyInfo>
         </KeyDescriptor>
 
@@ -74,7 +92,6 @@ Here is a generated metadata file as an example:
 
         <SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
                              Location="https://HOST_NAME/cas/idp/profile/SAML2/POST/SLO"/>
-
         <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
                              Location="https://HOST_NAME/cas/idp/profile/SAML2/POST/SSO"/>
         <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
@@ -85,15 +102,14 @@ Here is a generated metadata file as an example:
 
 ### Server Configuration
 
-<div class="alert alert-info"><strong>Server Configuration</strong><p>If you have deployed CAS in an external application server/servlet container
-(i.e. Apache Tomcat) you will need to make sure
-that the server is adjusted to handle large-enough <code>HttpHeaderSize</code> and <code>HttpPostSize</code> values (i.e. 2097152).
-The embedded container that ships with CAS handles this automatically.</p></div>
+<div class="alert alert-info"><strong>Server Configuration</strong><p>If you have deployed CAS in an external application server/servlet container (i.e. Apache Tomcat) you will need to make sure that the server is adjusted to handle large-enough <code>HttpHeaderSize</code> and <code>HttpPostSize</code> values (i.e. 2097152). The embedded container that ships with CAS handles this automatically.</p></div>
+
+### Mapping Endpoints
 
 Note that CAS metadata endpoints for various bindings are typically available under `/cas/idp/...`. If you
 mean you use an existing metadata file whose binding endpoints begin with `/idp/...`, you may need to deploy
 CAS at the root context path so it's able to respond to those requests. (i.e. `https://sso.example.org/cas/login` becomes
-`https://sso.example.org/login`).
+`https://sso.example.org/login`). Alternatively, you may try to use URL-rewriting route requests from `/idp/` to `/cas/idp/`,etc.
 
 ## SP Metadata
 
@@ -144,16 +160,13 @@ SAML relying parties and services must be registered within the CAS service regi
 }
 ```
 
-<div class="alert alert-info"><strong>Aggregated Metadata</strong><p>If metadata
-contains data for more than one relying party, (i.e. InCommon) those relying parties need to be defined by their entity id, explicitly via the <code>serviceId</code> field, given the field accepts regular expressions.</p></div>
-
 The following fields are available for SAML services:
 
 | Field                                | Description
 |--------------------------------------|------------------------------------------------------------------
 | `metadataLocation`                   | Location of service metadata defined from system files, classpath, directories or URL resources.
 | `metadataSignatureLocation`          | Location of the metadata signing certificate/public key to validate the metadata which must be defined from system files or classpath. If defined, will enforce the `SignatureValidationFilter` validation filter on metadata.
-| `metadataMaxValidity`                | If defined, will enforce the `RequiredValidUntilFilter` validation filter on metadata.
+| `metadataExpirationDuration`         | If defined, will expire metadata in the cache after the indicated duration which will force CAS to retrieve and resolve the metadata again.
 | `signAssertions`                     | Whether assertions should be signed. Default is `false`.
 | `signResponses`                      | Whether responses should be signed. Default is `true`.
 | `encryptAssertions`                  | Whether assertions should be encrypted. Default is `false`.
@@ -165,6 +178,45 @@ The following fields are available for SAML services:
 | `metadataCriteriaRemoveEmptyEntitiesDescriptors` | Controls whether to keep entities descriptors that contain no entity descriptors. Default is `true`.
 | `metadataCriteriaRemoveRolelessEntityDescriptors` | Controls whether to keep entity descriptors that contain no roles. Default is `true`.
 | `attributeNameFormats` | Map that defines attribute name formats for a given attribute name to be encoded in the SAML response.
+| `nameIdQualifier` | If defined, will overwrite the `NameQualifier` attribute of the produced subject's name id.
+| `serviceProviderNameIdQualifier` | If defined, will overwrite the `SPNameQualifier` attribute of the produced subject's name id.
+| `skipGeneratingAssertionNameId` | Whether generation of a name identifer should be skipped for assertions. Default is `false`.
+| `skipGeneratingSubjectConfirmationInResponseTo` | Whether generation of the `InResponseTo` element should be skipped for subject confirmations. Default is `false`.
+| `skipGeneratingSubjectConfirmationNotOnOrAfter` | Whether generation of the `NotOnOrBefore` element should be skipped for subject confirmations. Default is `false`.
+| `skipGeneratingSubjectConfirmationRecipient` | Whether generation of the `Recipient` element should be skipped for subject confirmations. Default is `false`.
+| `skipGeneratingSubjectConfirmationNotBefore` | Whether generation of the `NotBefore` element should be skipped for subject confirmations. Default is `true`.
+| `signingCredentialType` | Acceptable values are `BASIC` and `X509`. This setting controls the type of the signature block produced in the final SAML response for this application. The latter, being the default, encodes the signature in `PEM` format inside a `X509Data` block while the former encodes the signature based on the resolved public key under a `DEREncodedKeyValue` block.
+
+<div class="alert alert-info"><strong>Keep What You Need!</strong><p>You are encouraged to only keep and maintain properties and settings needed for a 
+particular integration. It is UNNECESSARY to grab a copy of all service fields and try to configure them yet again based on their default. While 
+you may wish to keep a copy as a reference, this strategy would ultimately lead to poor upgrades increasing chances of breaking changes and a messy 
+deployment at that.</p></div>
+
+### Metadata Aggregates
+
+CAS services are fundamentally recognized and loaded by service identifiers taught to CAS typically via
+regular expressions. This allows for common groupings of applications and services by
+url patterns (i.e. "Everything that belongs to `example.org` is registered with CAS).
+With aggregated metadata, CAS essentially does double
+authorization checks because it will first attempt to find the entity id
+in its collection of resolved metadata components and then it looks to
+see if that entity id is authorized via the pattern that is assigned to
+that service definition. This means you can do one of several things:
+
+1. Open up the pattern to allow everything that is authorized in the metadata.
+2. Restrict the pattern to only a select few entity ids found in the
+metadata. This is essentially the same thing as defining metadata criteria
+to filter down the list of resolved relying parties and entity ids except that its done
+after the fact once the metadata is fully loaded and parsed.
+3. You can also instruct CAS to filter metadata
+entities by a defined criteria at resolution time when it reads the
+metadata itself. This is essentially the same thing as forcing the pattern
+to match entity ids, except that it's done while CAS is reading the
+metadata and thus load times are improved.
+
+### Metadata Resolution
+
+Service provider metadata is fetched and loaded on demand for every service and then cached in a global cache for a configurable duration. Subsequent requests for service metadata will always consult the cache first and if missed, will resort to actually resolving the metadata by loading or contacting the configured resource. Each service provider definition that is registered with CAS may optionally also specifically an expiration period of metadata resolution to override the default global value.
 
 ### Attribute Name Formats
 
@@ -176,8 +228,7 @@ Attribute name formats can be specified per relying party in the service registr
   "serviceId" : "the-entity-id-of-the-sp",
   "name": "SAML Service",
   "id": 100001,
-  "attributeNameFormats":
-  {
+  "attributeNameFormats": {
     "@class": "java.util.HashMap",
     "attributeName": "basic|uri|unspecified|custom-format-etc"
   }
@@ -217,6 +268,79 @@ needed for InCommon's Research and Scholarship service providers:
 }
 ```
 
+#### Groovy Script
+
+This policy allows a Groovy script to calculate the collection of released attributes.
+
+```json
+{
+  "@class": "org.apereo.cas.support.saml.services.SamlRegisteredService",
+  "serviceId": "entity-ids-allowed-via-regex",
+  "name": "SAML",
+  "id": 10,
+  "metadataLocation": "path/to/incommon/metadata.xml",
+  "attributeReleasePolicy": {
+    "@class": "org.apereo.cas.support.saml.services.GroovySamlRegisteredServiceAttributeReleasePolicy",
+    "groovyScript": "file:/etc/cas/config/script.groovy"
+  }
+}
+```
+
+The outline of the script may be designed as:
+
+```groovy
+import java.util.*
+import org.apereo.cas.support.saml.services.*
+import org.apereo.cas.support.saml.*
+
+def Map<String, Object> run(final Object... args) {
+    def attributes = args[0]
+    def service = args[1]
+    def resolver = args[2]
+    def facade = args[3]
+    def entityDescriptor = args[4]
+    def applicationContext = args[5]
+    def logger = args[6]
+    ...
+    return null;
+}
+```
+
+The following parameters are passed to the script:
+
+| Parameter        | Description
+|------------------|--------------------------------------------------------------------------------------------
+| `attributes`     | Map of current attributes resolved and available for release.
+| `service`        | The SAML service definition matched in the service registry.
+| `resolver`       | The metadata resolver instance of this service provider.
+| `facade`         | A wrapper on top of the metadata resolver that allows access to utility functions.
+| `entityDescriptor`    | The `EntityDescriptor` object matched and linked to this service provider's metadata.
+| `applicationContext`  | CAS application context allowing direct access to beans, etc.
+| `logger`         | The object responsible for issuing log messages such as `logger.info(...)`.
+
+An example script follows:
+
+```groovy
+import java.util.*
+import org.apereo.cas.support.saml.services.*
+import org.apereo.cas.support.saml.*
+
+def Map<String, Object> run(final Object... args) {
+    def attributes = args[0]
+    def service = args[1]
+    def resolver = args[2]
+    def facade = args[3]
+    def entityDescriptor = args[4]
+    def applicationContext = args[5]
+    def logger = args[6]
+
+    if (entityDescriptor.entityId == "TestingSAMLApplication") {
+      return [username:["something"], another:"attribute"]
+    }
+    return [:]
+}
+```
+
 #### Pattern Matching Entity Ids
 
 In the event that an aggregate is defined containing multiple entity ids, the below attribute release policy may be used to release a collection of allowed attributes to entity ids grouped together by a regular expression pattern:
@@ -236,6 +360,49 @@ In the event that an aggregate is defined containing multiple entity ids, the be
   }
 }
 ```
+
+#### Entity Attributes Filter
+
+This attribute release policy authorizes the release of defined attributes, provided the accompanying metadata for the service provider contains attributes that match certain values.
+
+```json
+{
+  "@class": "org.apereo.cas.support.saml.services.SamlRegisteredService",
+  "serviceId": "entity-ids-allowed-via-regex",
+  "name": "SAML",
+  "id": 10,
+  "metadataLocation": "path/to/metadata.xml",
+  "attributeReleasePolicy": {
+    "@class": "org.apereo.cas.support.saml.services.MetadataEntityAttributesAttributeReleasePolicy",
+    "allowedAttributes" : [ "java.util.ArrayList", [ "cn", "mail", "sn" ] ],
+    "entityAttributeValues" : [ "java.util.LinkedHashSet", [ "entity-attribute-value" ] ],
+    "entityAttribute" : "http://somewhere.org/category-x",
+    "entityAttributeFormat" : "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
+  }
+}
+```
+
+The specification of `entityAttributeFormat` is optional.
+
+#### Requested Attributes Filter
+
+This attribute release policy authorizes the release of defined attributes, based on the accompanying metadata for the service provider having requested attributes as part of its `AttributeConsumingService` element.
+
+```json
+{
+  "@class": "org.apereo.cas.support.saml.services.SamlRegisteredService",
+  "serviceId": "entity-ids-allowed-via-regex",
+  "name": "SAML",
+  "id": 10,
+  "metadataLocation": "path/to/metadata.xml",
+  "attributeReleasePolicy": {
+    "@class": "org.apereo.cas.support.saml.services.MetadataRequestedAttributesAttributeReleasePolicy",
+    "useFriendlyName" : false
+  }
+}
+```
+
+The `useFriendlyName` allows the filter to compare the requested attribute's friendly name with the resolved attribute.
 
 ### Name ID Selection
 
@@ -269,7 +436,16 @@ from a Metadata query server, the metadata location must be configured to point 
 A number of SAML2 service provider integrations are provided natively by CAS. To learn more,
 please [review this guide](../integration/Configuring-SAML-SP-Integrations.html).
 
+## Client Libraries
+
+For Java-based applications, the following frameworks may be used to integrate your application with CAS acting as a SAML2 identity provider:
+
+- [Spring Security SAML](http://projects.spring.io/spring-security-saml/)
+- [Pac4j](http://www.pac4j.org/docs/clients/saml.html)
+
 ## Troubleshooting
+
+To enable additional logging, modify the logging configuration file to add the following:
 
 ```xml
 <AsyncLogger name="org.opensaml" level="debug" additivity="false">

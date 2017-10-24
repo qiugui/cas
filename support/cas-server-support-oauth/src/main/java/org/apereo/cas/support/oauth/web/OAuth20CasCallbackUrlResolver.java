@@ -1,6 +1,6 @@
 package org.apereo.cas.support.oauth.web;
 
-import org.apereo.cas.support.oauth.OAuthConstants;
+import org.apereo.cas.support.oauth.OAuth20Constants;
 import org.jasig.cas.client.util.URIBuilder;
 import org.pac4j.core.context.WebContext;
 import org.pac4j.core.http.UrlResolver;
@@ -18,13 +18,13 @@ import java.util.Optional;
 public class OAuth20CasCallbackUrlResolver implements UrlResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger(OAuth20CasCallbackUrlResolver.class);
 
-    private String callbackUrl;
+    private final String callbackUrl;
 
     public OAuth20CasCallbackUrlResolver(final String callbackUrl) {
         this.callbackUrl = callbackUrl;
     }
     
-    private Optional<URIBuilder.BasicNameValuePair> getQueryParameter(final WebContext context, final String name) {
+    private static Optional<URIBuilder.BasicNameValuePair> getQueryParameter(final WebContext context, final String name) {
         final URIBuilder builderContext = new URIBuilder(context.getFullRequestURL());
         return builderContext.getQueryParams()
                 .stream().filter(p -> p.getName().equalsIgnoreCase(name))
@@ -36,13 +36,19 @@ public class OAuth20CasCallbackUrlResolver implements UrlResolver {
         if (url.startsWith(callbackUrl)) {
             final URIBuilder builder = new URIBuilder(url);
 
-            Optional<URIBuilder.BasicNameValuePair> parameter = getQueryParameter(context, OAuthConstants.CLIENT_ID);
+            Optional<URIBuilder.BasicNameValuePair> parameter = getQueryParameter(context, OAuth20Constants.CLIENT_ID);
             parameter.ifPresent(basicNameValuePair -> builder.addParameter(basicNameValuePair.getName(), basicNameValuePair.getValue()));
 
-            parameter = getQueryParameter(context, OAuthConstants.REDIRECT_URI);
+            parameter = getQueryParameter(context, OAuth20Constants.REDIRECT_URI);
             parameter.ifPresent(basicNameValuePair -> builder.addParameter(basicNameValuePair.getName(), basicNameValuePair.getValue()));
 
-            parameter = getQueryParameter(context, OAuthConstants.ACR_VALUES);
+            parameter = getQueryParameter(context, OAuth20Constants.ACR_VALUES);
+            parameter.ifPresent(basicNameValuePair -> builder.addParameter(basicNameValuePair.getName(), basicNameValuePair.getValue()));
+
+            parameter = getQueryParameter(context, OAuth20Constants.RESPONSE_TYPE);
+            parameter.ifPresent(basicNameValuePair -> builder.addParameter(basicNameValuePair.getName(), basicNameValuePair.getValue()));
+
+            parameter = getQueryParameter(context, OAuth20Constants.GRANT_TYPE);
             parameter.ifPresent(basicNameValuePair -> builder.addParameter(basicNameValuePair.getName(), basicNameValuePair.getValue()));
 
             final String callbackResolved = builder.build().toString();

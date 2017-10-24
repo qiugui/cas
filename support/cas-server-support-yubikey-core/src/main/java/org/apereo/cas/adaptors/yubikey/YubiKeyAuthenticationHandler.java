@@ -5,10 +5,14 @@ import com.yubico.client.v2.VerificationResponse;
 import com.yubico.client.v2.YubicoClient;
 import com.yubico.client.v2.exceptions.YubicoValidationFailure;
 import com.yubico.client.v2.exceptions.YubicoVerificationException;
+import org.apache.commons.lang3.StringUtils;
+import org.apereo.cas.adaptors.yubikey.registry.OpenYubiKeyAccountRegistry;
 import org.apereo.cas.authentication.Credential;
 import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.handler.support.AbstractPreAndPostProcessingAuthenticationHandler;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.web.support.WebUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,8 +35,9 @@ import java.security.GeneralSecurityException;
  * @since 4.1
  */
 public class YubiKeyAuthenticationHandler extends AbstractPreAndPostProcessingAuthenticationHandler {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(YubiKeyAuthenticationHandler.class);
-    
+
     private final YubiKeyAccountRegistry registry;
     private final YubicoClient client;
 
@@ -42,25 +47,26 @@ public class YubiKeyAuthenticationHandler extends AbstractPreAndPostProcessingAu
      * group of users, you may verify an compliant implementation of {@link YubiKeyAccountRegistry}.
      * By default, all accounts are allowed.
      *
-     * @param clientId  the client id
-     * @param secretKey the secret key
-     * @param registry  the account registry which holds registrations.
+     * @param name             the name
+     * @param servicesManager  the services manager
+     * @param principalFactory the principal factory
+     * @param client           the client
+     * @param registry         the account registry which holds registrations.
      */
-    public YubiKeyAuthenticationHandler(final Integer clientId, final String secretKey, final YubiKeyAccountRegistry registry) {
+    public YubiKeyAuthenticationHandler(final String name, final ServicesManager servicesManager,
+                                        final PrincipalFactory principalFactory,
+                                        final YubicoClient client,
+                                        final YubiKeyAccountRegistry registry) {
+        super(name, servicesManager, principalFactory, null);
         this.registry = registry;
-        this.client = YubicoClient.getClient(clientId, secretKey);
-
-        if (this.registry == null) {
-            LOGGER.warn("No YubiKey account registry is defined. All credentials are considered "
-                            + "eligible for YubiKey authentication. Consider providing an account registry implementation via [{}]",
-                    YubiKeyAccountRegistry.class.getName());
-        }
+        this.client = client;
     }
 
-    public YubiKeyAuthenticationHandler(final Integer clientId, final String secretKey) {
-        this(clientId, secretKey, null);
-    }   
-    
+    public YubiKeyAuthenticationHandler(final YubicoClient client) {
+        this(StringUtils.EMPTY, null, null,
+                client, new OpenYubiKeyAccountRegistry());
+    }
+
     @Override
     protected HandlerResult doAuthentication(final Credential credential) throws GeneralSecurityException, PreventedException {
         final YubiKeyCredential yubiKeyCredential = (YubiKeyCredential) credential;
@@ -75,8 +81,7 @@ public class YubiKeyAuthenticationHandler extends AbstractPreAndPostProcessingAu
         final RequestContext context = RequestContextHolder.getRequestContext();
         final String uid = WebUtils.getAuthentication(context).getPrincipal().getId();
         final String publicId = YubicoClient.getPublicId(otp);
-        if (this.registry != null
-                && !this.registry.isYubiKeyRegisteredFor(uid, publicId)) {
+        if (!this.registry.isYubiKeyRegisteredFor(uid, publicId)) {
             LOGGER.debug("YubiKey public id [{}] is not registered for user [{}]", publicId, uid);
             throw new AccountNotFoundException("YubiKey id is not recognized in registry");
         }

@@ -1,6 +1,8 @@
 package org.apereo.cas.util;
 
-import com.google.common.base.Throwables;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.StringUtils;
 import org.jose4j.jwk.JsonWebKey;
 import org.jose4j.jwk.OctJwkGenerator;
 import org.jose4j.jwk.OctetSequenceJsonWebKey;
@@ -14,10 +16,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.util.Base64;
-import java.util.Formatter;
 import java.util.Map;
-import java.util.stream.IntStream;
 
 /**
  * This is {@link EncodingUtils}
@@ -40,16 +39,81 @@ public final class EncodingUtils {
     }
 
     /**
-     * Hex encode the given byte[] as a string.
+     * Hex decode string.
+     *
+     * @param data the data
+     * @return the string
+     */
+    public static String hexDecode(final String data) {
+        if (StringUtils.isNotBlank(data)) {
+            return hexDecode(data.toCharArray());
+        }
+        return null;
+    }
+
+    /**
+     * Hex decode string.
+     *
+     * @param data the data
+     * @return the string
+     */
+    public static String hexDecode(final char[] data) {
+        try {
+            final byte[] result = Hex.decodeHex(data);
+            return new String(result, StandardCharsets.UTF_8);
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Hex encode string.
+     *
+     * @param data the data
+     * @return the string
+     */
+    public static String hexEncode(final String data) {
+        try {
+            final char[] result = Hex.encodeHex(data.getBytes(StandardCharsets.UTF_8));
+            return new String(result);
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Hex encode string.
+     *
+     * @param data the data
+     * @return the string
+     */
+    public static String hexEncode(final byte[] data) {
+        try {
+            final char[] result = Hex.encodeHex(data);
+            return new String(result);
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Base64-encode the given byte[] as a string.
      *
      * @param data the byte array to encode
      * @return the encoded string
      */
-    public static String hexEncode(final byte[] data) {
-        final StringBuilder sb = new StringBuilder();
-        final Formatter f = new Formatter(sb);
-        IntStream.range(0, data.length).forEach(i -> f.format("%02x", data[i]));
-        return sb.toString();
+    public static String encodeUrlSafeBase64(final byte[] data) {
+        return Base64.encodeBase64URLSafeString(data);
+    }
+
+    /**
+     * Base64-decode the given string as byte[].
+     *
+     * @param data the base64 string
+     * @return the encoded array
+     */
+    public static byte[] decodeUrlSafeBase64(final String data) {
+        return decodeBase64(data);
     }
 
     /**
@@ -59,27 +123,47 @@ public final class EncodingUtils {
      * @return the encoded string
      */
     public static String encodeBase64(final byte[] data) {
-        return Base64.getEncoder().encodeToString(data);
+        return Base64.encodeBase64String(data);
+    }
+
+    /**
+     * Base64-encode the given string as a string.
+     *
+     * @param data the String to encode
+     * @return the encoded string
+     */
+    public static String encodeBase64(final String data) {
+        return Base64.encodeBase64String(data.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
      * Base64-decode the given string as byte[].
      *
      * @param data the base64 string
-     * @return the encoded array
+     * @return the decoded array
      */
     public static byte[] decodeBase64(final String data) {
-        return Base64.getDecoder().decode(data);
+        return Base64.decodeBase64(data);
     }
-
+    
     /**
      * Base64-decode the given string as byte[].
      *
      * @param data the base64 string
-     * @return the encoded array
+     * @return the decoded array
      */
     public static byte[] decodeBase64(final byte[] data) {
-        return Base64.getDecoder().decode(data);
+        return Base64.decodeBase64(data);
+    }
+
+    /**
+     * Base64-decode the given string as String.
+     *
+     * @param data the base64 string
+     * @return the string
+     */
+    public static String decodeBase64ToString(final String data) {
+        return new String(decodeBase64(data), StandardCharsets.UTF_8);
     }
 
     /**
@@ -89,7 +173,7 @@ public final class EncodingUtils {
      * @return the byte[] in base64
      */
     public static byte[] encodeBase64ToByteArray(final byte[] data) {
-        return Base64.getEncoder().encode(data);
+        return Base64.encodeBase64(data);
     }
 
 
@@ -114,7 +198,7 @@ public final class EncodingUtils {
         try {
             return URLEncoder.encode(value, encoding);
         } catch (final UnsupportedEncodingException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -128,10 +212,19 @@ public final class EncodingUtils {
         try {
             return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
         } catch (final UnsupportedEncodingException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
+
+    /**
+     * Validates Base64 encoding.
+     * @param value the value to check
+     * @return true if the string is validly Base64 encoded
+     */
+    public static boolean isBase64(final String value) {
+        return Base64.isBase64(value);
+    }
 
     /**
      * Verify jws signature byte [ ].
@@ -150,12 +243,12 @@ public final class EncodingUtils {
             final boolean verified = jws.verifySignature();
             if (verified) {
                 final String payload = jws.getPayload();
-                LOGGER.debug("Successfully decoded value. Result in Base64-encoding is [{}]", payload);
+                LOGGER.trace("Successfully decoded value. Result in Base64-encoding is [{}]", payload);
                 return EncodingUtils.decodeBase64(payload);
             }
             return null;
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -188,7 +281,7 @@ public final class EncodingUtils {
             jws.setKey(key);
             return jws.getCompactSerialization().getBytes(StandardCharsets.UTF_8);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 }

@@ -66,13 +66,13 @@ public class OpenSamlConfigBean {
      */
     @PostConstruct
     public void init() {
-        LOGGER.info("Initializing OpenSaml configuration...");
+        LOGGER.debug("Initializing OpenSaml configuration...");
         Assert.notNull(this.parserPool, "parserPool must not be null");
 
         try {
             InitializationService.initialize();
         } catch (final InitializationException e) {
-            throw new RuntimeException("Exception initializing OpenSAML", e);
+            throw new IllegalArgumentException("Exception initializing OpenSAML", e);
         }
 
         XMLObjectProviderRegistry registry;
@@ -88,13 +88,8 @@ public class OpenSamlConfigBean {
         registry.setParserPool(this.parserPool);
 
         this.builderFactory = registry.getBuilderFactory();
-        Assert.notNull(this.builderFactory, "parserPool cannot be null");
-
         this.marshallerFactory = registry.getMarshallerFactory();
-        Assert.notNull(this.marshallerFactory, "marshallerFactory cannot be null");
-
         this.unmarshallerFactory = registry.getUnmarshallerFactory();
-        Assert.notNull(this.unmarshallerFactory, "unmarshallerFactory cannot be null");
 
         LOGGER.debug("Initialized OpenSaml successfully.");
     }

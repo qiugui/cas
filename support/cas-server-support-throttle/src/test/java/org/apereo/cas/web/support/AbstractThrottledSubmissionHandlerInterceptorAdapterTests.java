@@ -32,8 +32,10 @@ import static org.junit.Assert.*;
  * @since 3.0.0
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = {RefreshAutoConfiguration.class, CasCoreUtilConfiguration.class,
-        AopAutoConfiguration.class, CasThrottlingConfiguration.class})
+@SpringBootTest(classes = {RefreshAutoConfiguration.class, 
+        CasCoreUtilConfiguration.class,
+        AopAutoConfiguration.class, 
+        CasThrottlingConfiguration.class})
 @EnableAspectJAutoProxy(proxyTargetClass = true)
 @TestPropertySource(properties = "spring.aop.proxy-target-class=true")
 @EnableScheduling
@@ -64,7 +66,7 @@ public abstract class AbstractThrottledSubmissionHandlerInterceptorAdapterTests 
         failLoop(3, 1000, HttpStatus.SC_UNAUTHORIZED);
 
         // Ensure that repeated logins ABOVE threshold rate are throttled
-        failLoop(3, 200, HttpStatus.SC_FORBIDDEN);
+        failLoop(3, 200, HttpStatus.SC_LOCKED);
 
         // Ensure that slowing down relieves throttle
         throttle.decrement();

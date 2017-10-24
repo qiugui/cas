@@ -2,6 +2,7 @@ package org.apereo.cas.web.view;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.apereo.cas.authentication.Authentication;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.ProtocolAttributeEncoder;
 import org.apereo.cas.authentication.principal.Principal;
 import org.apereo.cas.services.ServicesManager;
@@ -33,15 +34,15 @@ public class Cas30JsonResponseView extends Cas30ResponseView {
                                  final ProtocolAttributeEncoder protocolAttributeEncoder,
                                  final ServicesManager servicesManager,
                                  final String authenticationContextAttribute,
-                                 final boolean releaseProtocolAttributes) {
+                                 final boolean releaseProtocolAttributes,
+                                 final AuthenticationServiceSelectionPlan serviceSelectionStrategy) {
         super(successResponse, protocolAttributeEncoder, servicesManager, authenticationContextAttribute,
-                createDelegatedView(), releaseProtocolAttributes);
+                createDelegatedView(), releaseProtocolAttributes, serviceSelectionStrategy);
     }
 
     private static MappingJackson2JsonView createDelegatedView() {
         final MappingJackson2JsonView view = new MappingJackson2JsonView();
         view.setPrettyPrint(true);
-        view.setDisableCaching(true);
         view.getObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL).findAndRegisterModules();
         return view;
     }
@@ -72,7 +73,6 @@ public class Cas30JsonResponseView extends Cas30ResponseView {
             casModel.put("serviceResponse", casResponse);
             model.clear();
             model.putAll(casModel);
-            setView(createDelegatedView());
         }
     }
 

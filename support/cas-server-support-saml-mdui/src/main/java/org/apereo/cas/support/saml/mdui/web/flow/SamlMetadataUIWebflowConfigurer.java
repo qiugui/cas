@@ -1,7 +1,9 @@
 package org.apereo.cas.support.saml.mdui.web.flow;
 
-import org.apereo.cas.web.flow.AbstractCasWebflowConfigurer;
+import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.web.flow.configurer.AbstractCasWebflowConfigurer;
 import org.apereo.cas.web.flow.CasWebflowConstants;
+import org.springframework.context.ApplicationContext;
 import org.springframework.webflow.definition.registry.FlowDefinitionRegistry;
 import org.springframework.webflow.engine.Flow;
 import org.springframework.webflow.engine.ViewState;
@@ -16,11 +18,13 @@ import org.springframework.webflow.execution.Action;
  */
 public class SamlMetadataUIWebflowConfigurer extends AbstractCasWebflowConfigurer {
 
-    private Action samlMetadataUIParserAction;
+    private final Action samlMetadataUIParserAction;
 
     public SamlMetadataUIWebflowConfigurer(final FlowBuilderServices flowBuilderServices, final FlowDefinitionRegistry loginFlowDefinitionRegistry,
-                                           final Action samlMetadataUIParserAction) {
-        super(flowBuilderServices, loginFlowDefinitionRegistry);
+                                           final Action samlMetadataUIParserAction,
+                                           final ApplicationContext applicationContext,
+                                           final CasConfigurationProperties casProperties) {
+        super(flowBuilderServices, loginFlowDefinitionRegistry, applicationContext, casProperties);
         this.samlMetadataUIParserAction = samlMetadataUIParserAction;
     }
 
@@ -28,7 +32,7 @@ public class SamlMetadataUIWebflowConfigurer extends AbstractCasWebflowConfigure
     protected void doInitialize() throws Exception {
         final Flow flow = getLoginFlow();
         if (flow != null) {
-            final ViewState state = (ViewState) flow.getTransitionableState(CasWebflowConstants.STATE_ID_VIEW_LOGIN_FORM);
+            final ViewState state = getTransitionableState(flow, CasWebflowConstants.STATE_ID_VIEW_LOGIN_FORM, ViewState.class);
             state.getEntryActionList().add(this.samlMetadataUIParserAction);
         }
     }

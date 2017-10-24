@@ -28,7 +28,7 @@ public abstract class BaseJsonOneTimeTokenCredentialRepository extends BaseOneTi
     }
 
     @Override
-    public String getSecret(final String username) {
+    public OneTimeTokenAccount get(final String username) {
         try {
             if (!this.location.getFile().exists()) {
                 LOGGER.warn("JSON account repository file [{}] is not found.", this.location.getFile());
@@ -43,7 +43,6 @@ public abstract class BaseJsonOneTimeTokenCredentialRepository extends BaseOneTi
             final Collection<OneTimeTokenAccount> c = this.serializer.from(this.location.getFile());
             return c.stream()
                     .filter(a -> StringUtils.isNotBlank(a.getUsername()) && a.getUsername().equals(username))
-                    .map(OneTimeTokenAccount::getSecretKey)
                     .findAny()
                     .orElse(null);
         } catch (final Exception e) {
@@ -54,15 +53,16 @@ public abstract class BaseJsonOneTimeTokenCredentialRepository extends BaseOneTi
 
     @Override
     public void save(final String userName, final String secretKey,
-                     final int validationCode,
-                     final List<Integer> scratchCodes) {
+                     final int validationCode, final List<Integer> scratchCodes) {
         try {
             LOGGER.debug("Storing google authenticator account for [{}]", userName);
             final OneTimeTokenAccount account = new OneTimeTokenAccount(userName, secretKey, validationCode, scratchCodes);
 
             LOGGER.debug("Ensuring JSON repository file exists at [{}]", this.location.getFile());
-            this.location.getFile().createNewFile();
-
+            final boolean result = this.location.getFile().createNewFile();
+            if (result) {
+                LOGGER.debug("Created JSON repository file at [{}]", this.location.getFile());
+            }
             final TreeSet<OneTimeTokenAccount> c;
             if (this.location.getFile().length() > 0) {
                 LOGGER.debug("Reading JSON repository file at [{}]", this.location.getFile());

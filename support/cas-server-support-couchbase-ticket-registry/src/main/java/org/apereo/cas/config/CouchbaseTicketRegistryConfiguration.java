@@ -4,9 +4,8 @@ import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.couchbase.ticketregistry.CouchbaseTicketRegistryProperties;
 import org.apereo.cas.configuration.support.Beans;
 import org.apereo.cas.couchbase.core.CouchbaseClientFactory;
-import org.apereo.cas.logout.LogoutManager;
+import org.apereo.cas.ticket.TicketCatalog;
 import org.apereo.cas.ticket.registry.CouchbaseTicketRegistry;
-import org.apereo.cas.ticket.registry.NoOpLockingStrategy;
 import org.apereo.cas.ticket.registry.NoOpTicketRegistryCleaner;
 import org.apereo.cas.ticket.registry.TicketRegistry;
 import org.apereo.cas.ticket.registry.TicketRegistryCleaner;
@@ -33,29 +32,29 @@ public class CouchbaseTicketRegistryConfiguration {
     @Autowired
     private CasConfigurationProperties casProperties;
 
-    @Autowired
-    @Qualifier("logoutManager")
-    private LogoutManager logoutManager;
-
     @RefreshScope
     @Bean
     public CouchbaseClientFactory ticketRegistryCouchbaseClientFactory() {
         final CouchbaseTicketRegistryProperties cb = casProperties.getTicket().getRegistry().getCouchbase();
         final Set<String> nodes = StringUtils.commaDelimitedListToSet(cb.getNodeSet());
-        return new CouchbaseClientFactory(nodes, cb.getBucket(), cb.getPassword(), cb.getTimeout());
+        return new CouchbaseClientFactory(nodes, cb.getBucket(),
+                cb.getBucket(), cb.getTimeout(), CouchbaseTicketRegistry.UTIL_DOCUMENT,
+                CouchbaseTicketRegistry.ALL_VIEWS);
     }
 
+    @Autowired
     @RefreshScope
-    @Bean(name = {"couchbaseTicketRegistry", "ticketRegistry"})
-    public TicketRegistry couchbaseTicketRegistry() {
+    @Bean
+    public TicketRegistry ticketRegistry(@Qualifier("ticketCatalog") final TicketCatalog ticketCatalog) {
         final CouchbaseTicketRegistryProperties couchbase = casProperties.getTicket().getRegistry().getCouchbase();
-        final CouchbaseTicketRegistry c = new CouchbaseTicketRegistry(ticketRegistryCouchbaseClientFactory(), couchbase.isQueryEnabled());
-        c.setCipherExecutor(Beans.newTicketRegistryCipherExecutor(couchbase.getCrypto()));
+        final CouchbaseTicketRegistry c = new CouchbaseTicketRegistry(ticketRegistryCouchbaseClientFactory(), ticketCatalog);
+        c.setCipherExecutor(Beans.newTicketRegistryCipherExecutor(couchbase.getCrypto(), "couchbase"));
+        System.setProperty("com.couchbase.queryEnabled", Boolean.toString(couchbase.isQueryEnabled()));
         return c;
     }
 
     @Bean
     public TicketRegistryCleaner ticketRegistryCleaner() {
-        return new NoOpTicketRegistryCleaner(new NoOpLockingStrategy(), logoutManager, couchbaseTicketRegistry(), false);
+        return NoOpTicketRegistryCleaner.getInstance();
     }
 }

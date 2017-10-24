@@ -4,23 +4,29 @@ title: CAS - Groovy Shell
 ---
 
 # CAS Groovy Shell
-This is a [Groovy shell embedded inside the CAS server](http://bit.ly/1P68woD)
+
+This is a [Groovy remote shell embedded inside the CAS server](http://bit.ly/1P68woD)
 that could be used by deployers to interact with the CAS API at runtime,
 to query the runtime state of the software and execute custom Groovy scripts. The console is aware of the CAS application
 context and is also able to load custom groovy scripts which
 may want to peek inside the CAS configuration, invoke its API and perhaps report back various bits of configuration about CAS.
+
+<div class="alert alert-warning"><strong>Usage Warning!</strong><p>
+Functionality provided by this module is deprecated and will be removed in future CAS versions, 
+as support for CRaSH (the framework handling shell operations) is removed from Spring Boot v2. Consider using the <a href="Configuring-Commandline-Shell.html">CAS Shell</a> instead as a more viable replacement.</p></div>
 
 Support is provided via the following dependency:
 
 ```xml
 <dependency>
      <groupId>org.apereo.cas</groupId>
-     <artifactId>cas-server-support-shell</artifactId>
+     <artifactId>cas-server-support-remote-shell</artifactId>
      <version>${cas.version}</version>
 </dependency>
 ```
 
 ## Configuration
+
 CAS supports an integrated Java shell called [CRaSH](http://www.crashub.org/).
 By default the remote shell will listen for connections
 on port 2000. The default user is `user` and the
@@ -28,7 +34,6 @@ default password will be randomly generated and displayed in the log output if o
 
 ```bash
 ssh -p 2000 user@localhost
-
 
 Using default password for shell access: ec03326c-4cf4-49ee-b745-7bb255c1dd7e
 ```

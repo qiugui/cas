@@ -32,6 +32,13 @@ public interface AuthenticationEventExecutionPlan {
     void registerMetadataPopulator(AuthenticationMetaDataPopulator populator);
 
     /**
+     * Register authentication post processor.
+     *
+     * @param processor the populator
+     */
+    void registerAuthenticationPostProcessor(AuthenticationPostProcessor processor);
+
+    /**
      * Register metadata populators.
      *
      * @param populator the populator
@@ -54,6 +61,14 @@ public interface AuthenticationEventExecutionPlan {
     void registerAuthenticationHandlerWithPrincipalResolver(AuthenticationHandler handler, PrincipalResolver principalResolver);
 
     /**
+     * Register authentication handlers with principal resolver.
+     *
+     * @param handlers          the handlers
+     * @param principalResolver the principal resolver
+     */
+    void registerAuthenticationHandlerWithPrincipalResolvers(Collection<AuthenticationHandler> handlers, PrincipalResolver principalResolver);
+
+    /**
      * Gets authentication handlers for transaction.
      *
      * @param transaction the transaction
@@ -64,11 +79,19 @@ public interface AuthenticationEventExecutionPlan {
     /**
      * Gets authentication metadata populators.
      *
-     * @param credentials the credentials
+     * @param transaction the transaction
      * @return the authentication metadata populators
      */
-    Collection<AuthenticationMetaDataPopulator> getAuthenticationMetadataPopulators(Collection<Credential> credentials);
+    Collection<AuthenticationMetaDataPopulator> getAuthenticationMetadataPopulators(AuthenticationTransaction transaction);
 
+    /**
+     * Gets authentication post processors.
+     *
+     * @param transaction the transaction
+     * @return the authentication metadata populators
+     */
+    Collection<AuthenticationPostProcessor> getAuthenticationPostProcessors(AuthenticationTransaction transaction);
+    
     /**
      * Gets principal resolver for authentication transaction.
      *

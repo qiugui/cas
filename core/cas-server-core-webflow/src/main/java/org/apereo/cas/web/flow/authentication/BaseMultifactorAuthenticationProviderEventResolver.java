@@ -1,6 +1,7 @@
 package org.apereo.cas.web.flow.authentication;
 
 import org.apereo.cas.CentralAuthenticationService;
+import org.apereo.cas.authentication.AuthenticationServiceSelectionPlan;
 import org.apereo.cas.authentication.AuthenticationSystemSupport;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.services.MultifactorAuthenticationProvider;
@@ -11,16 +12,15 @@ import org.apereo.cas.services.RegisteredServiceAccessStrategyUtils;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.services.VariegatedMultifactorAuthenticationProvider;
 import org.apereo.cas.ticket.registry.TicketRegistrySupport;
-import org.apereo.cas.validation.AuthenticationRequestServiceSelectionStrategy;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.cas.web.flow.resolver.impl.AbstractCasWebflowEventResolver;
-import org.apereo.cas.web.support.WebUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.util.CookieGenerator;
 import org.springframework.webflow.execution.RequestContext;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,28 +32,33 @@ import java.util.Optional;
  */
 public abstract class BaseMultifactorAuthenticationProviderEventResolver extends AbstractCasWebflowEventResolver
         implements MultifactorAuthenticationProviderResolver {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(BaseMultifactorAuthenticationProviderEventResolver.class);
+    
     public BaseMultifactorAuthenticationProviderEventResolver(final AuthenticationSystemSupport authenticationSystemSupport,
                                                               final CentralAuthenticationService centralAuthenticationService,
-                                                              final ServicesManager servicesManager, final TicketRegistrySupport ticketRegistrySupport,
+                                                              final ServicesManager servicesManager,
+                                                              final TicketRegistrySupport ticketRegistrySupport,
                                                               final CookieGenerator warnCookieGenerator,
-                                                              final List<AuthenticationRequestServiceSelectionStrategy> authenticationSelectionStrategies,
+                                                              final AuthenticationServiceSelectionPlan authenticationSelectionStrategies,
                                                               final MultifactorAuthenticationProviderSelector selector) {
-        super(authenticationSystemSupport, centralAuthenticationService, servicesManager, ticketRegistrySupport, warnCookieGenerator,
+        super(authenticationSystemSupport, centralAuthenticationService, servicesManager,
+                ticketRegistrySupport, warnCookieGenerator,
                 authenticationSelectionStrategies, selector);
     }
 
     @Override
     public Optional<MultifactorAuthenticationProvider> resolveProvider(final Map<String, MultifactorAuthenticationProvider> providers,
                                                                        final Collection<String> requestMfaMethod) {
-        final Optional<MultifactorAuthenticationProvider> providerFound = providers.values().stream()
+        final Optional<MultifactorAuthenticationProvider> providerFound = providers.values()
+                .stream()           
                 .filter(p -> requestMfaMethod.stream().anyMatch(p::matches))
                 .findFirst();
         if (providerFound.isPresent()) {
             final MultifactorAuthenticationProvider provider = providerFound.get();
             if (provider instanceof VariegatedMultifactorAuthenticationProvider) {
                 final VariegatedMultifactorAuthenticationProvider multi = VariegatedMultifactorAuthenticationProvider.class.cast(provider);
-                return multi.getProviders().stream()
+                return multi.getProviders()
+                        .stream()
                         .filter(p -> requestMfaMethod.stream().anyMatch(p::matches))
                         .findFirst();
             }
@@ -72,7 +77,7 @@ public abstract class BaseMultifactorAuthenticationProviderEventResolver extends
      */
     public Optional<MultifactorAuthenticationProvider> resolveProvider(final Map<String, MultifactorAuthenticationProvider> providers,
                                                                        final String requestMfaMethod) {
-        return resolveProvider(providers, Collections.singleton(requestMfaMethod));
+        return resolveProvider(providers, CollectionUtils.wrap(requestMfaMethod));
     }
 
     @Override
@@ -96,10 +101,13 @@ public abstract class BaseMultifactorAuthenticationProviderEventResolver extends
      * @return the registered service
      */
     protected RegisteredService resolveRegisteredServiceInRequestContext(final RequestContext requestContext) {
-        final Service ctxService = WebUtils.getService(requestContext);
-        final Service resolvedService = resolveServiceFromAuthenticationRequest(ctxService);
-        final RegisteredService service = this.servicesManager.findServiceBy(resolvedService);
-        RegisteredServiceAccessStrategyUtils.ensureServiceAccessIsAllowed(resolvedService, service);
-        return service;
+        final Service resolvedService = resolveServiceFromAuthenticationRequest(requestContext);
+        if (resolvedService != null) {
+            final RegisteredService service = this.servicesManager.findServiceBy(resolvedService);
+            RegisteredServiceAccessStrategyUtils.ensureServiceAccessIsAllowed(resolvedService, service);
+            return service;
+        }
+        LOGGER.debug("Authentication request is not accompanied by a service given none is specified");
+        return null;
     }
 }

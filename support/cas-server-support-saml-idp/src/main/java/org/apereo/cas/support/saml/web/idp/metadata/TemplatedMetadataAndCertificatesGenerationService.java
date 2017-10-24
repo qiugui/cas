@@ -1,12 +1,12 @@
 package org.apereo.cas.support.saml.web.idp.metadata;
 
-import com.google.common.base.Throwables;
 import net.shibboleth.utilities.java.support.security.SelfSignedCertificateGenerator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.saml.idp.SamlIdPProperties;
+import org.apereo.cas.util.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,6 @@ import java.io.File;
 import java.io.StringWriter;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 /**
  * A metadata generator based on a predefined template.
@@ -50,17 +49,19 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
             final Resource metadataLocation = idp.getMetadata().getLocation();
 
             if (!metadataLocation.exists()) {
+                LOGGER.debug("Metadata directory [{}] does not exist. Creating...", metadataLocation);
                 if (!metadataLocation.getFile().mkdir()) {
                     throw new IllegalArgumentException("Metadata directory location " + metadataLocation + " cannot be located/created");
                 }
             }
             LOGGER.info("Metadata directory location is at [{}] with entityID [{}]", metadataLocation, idp.getEntityId());
+
+            performGenerationSteps();
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
-
-
+    
     /**
      * Is metadata missing?
      *
@@ -71,7 +72,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
             final SamlIdPProperties idp = casProperties.getAuthn().getSamlIdp();
             return !idp.getMetadata().getMetadataFile().exists();
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -98,7 +99,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
             return idp.getMetadata().getMetadataFile();
         } catch (final Exception e) {
             LOGGER.error(e.getMessage(), e);
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -111,7 +112,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
             final URL url = new URL(casProperties.getServer().getPrefix());
             return url.getHost();
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -126,7 +127,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
         generator.setHostName(getIdPHostName());
         generator.setCertificateFile(idp.getMetadata().getEncryptionCertFile().getFile());
         generator.setPrivateKeyFile(idp.getMetadata().getEncryptionKeyFile().getFile());
-        generator.setURISubjectAltNames(Arrays.asList(getIdPHostName().concat(URI_SUBJECT_ALTNAME_POSTFIX)));
+        generator.setURISubjectAltNames(CollectionUtils.wrap(getIdPHostName().concat(URI_SUBJECT_ALTNAME_POSTFIX)));
         generator.generate();
     }
 
@@ -141,7 +142,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
         generator.setHostName(getIdPHostName());
         generator.setCertificateFile(idp.getMetadata().getSigningCertFile().getFile());
         generator.setPrivateKeyFile(idp.getMetadata().getSigningKeyFile().getFile());
-        generator.setURISubjectAltNames(Arrays.asList(getIdPHostName().concat(URI_SUBJECT_ALTNAME_POSTFIX)));
+        generator.setURISubjectAltNames(CollectionUtils.wrap(getIdPHostName().concat(URI_SUBJECT_ALTNAME_POSTFIX)));
         generator.generate();
     }
 
@@ -158,7 +159,7 @@ public class TemplatedMetadataAndCertificatesGenerationService implements SamlId
         String signingKey = FileUtils.readFileToString(idp.getMetadata().getSigningCertFile().getFile(), StandardCharsets.UTF_8);
         signingKey = StringUtils.remove(signingKey, BEGIN_CERTIFICATE);
         signingKey = StringUtils.remove(signingKey, END_CERTIFICATE).trim();
-        
+
         String encryptionKey = FileUtils.readFileToString(idp.getMetadata().getEncryptionCertFile().getFile(), StandardCharsets.UTF_8);
         encryptionKey = StringUtils.remove(encryptionKey, BEGIN_CERTIFICATE);
         encryptionKey = StringUtils.remove(encryptionKey, END_CERTIFICATE).trim();

@@ -62,22 +62,17 @@ public class CommunicationsManager {
     }
 
     /**
-     * Sms.
+     * Email boolean.
      *
-     * @param principal the principal
-     * @param attribute the attribute
-     * @param text      the text
-     * @param from      the from
+     * @param text    the text
+     * @param from    the from
+     * @param subject the subject
+     * @param to      the to
      * @return the boolean
      */
-    public boolean sms(final Principal principal,
-                       final String attribute,
-                       final String text, final String from) {
-        if (StringUtils.isNotBlank(attribute) && principal.getAttributes().containsKey(attribute) && isSmsSenderDefined()) {
-            final String to = CollectionUtils.toCollection(principal.getAttributes().get(attribute)).iterator().next().toString();
-            return sms(from, to, text);
-        }
-        return false;
+    public boolean email(final String text, final String from,
+                         final String subject, final String to) {
+        return email(text, from, subject, to, null, null);
     }
 
     /**
@@ -120,6 +115,25 @@ public class CommunicationsManager {
             return true;
         } catch (final Exception ex) {
             LOGGER.error(ex.getMessage(), ex);
+        }
+        return false;
+    }
+
+    /**
+     * Sms.
+     *
+     * @param principal the principal
+     * @param attribute the attribute
+     * @param text      the text
+     * @param from      the from
+     * @return the boolean
+     */
+    public boolean sms(final Principal principal,
+                       final String attribute,
+                       final String text, final String from) {
+        if (StringUtils.isNotBlank(attribute) && principal.getAttributes().containsKey(attribute) && isSmsSenderDefined()) {
+            final String to = CollectionUtils.toCollection(principal.getAttributes().get(attribute)).iterator().next().toString();
+            return sms(from, to, text);
         }
         return false;
     }

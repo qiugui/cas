@@ -9,13 +9,15 @@ title: CAS - JWT Authentication
 CAS provides support for token-based authentication on top of JWT, where an authentication request can be granted an SSO session based
 on a form of credentials that are JWTs.
 
+## JWT Service Tickets
+
 CAS may also be allowed to fully create signed/encrypted JWTs and pass them back to the application in form of service tickets.
 In this case, JWTs are entirely self-contained and contain the authenticated principal as well as all authorized attributes
 in form of JWT claims. To learn more about this functionality, [please review this guide](Configure-ServiceTicket-JWT.html).
 
 ## Overview
 
-CAS expects a `token` parameter to be passed along to the `/login` endpoint. The parameter value must be a JWT.
+CAS expects a `token` parameter (or request header) to be passed along to the `/login` endpoint. The parameter value must be a JWT.
 
 <div class="alert alert-info"><strong>JCE Requirement</strong><p>It's safe to make sure you have the proper JCE bundle installed in your Java environment that is used by CAS, specially if you need to use specific signing/encryption algorithms and methods. Be sure to pick the right version of the JCE for your Java version. Java versions can be detected via the <code>java -version</code> command.</p></div>
 
@@ -44,6 +46,8 @@ Once the token is generated, you may pass it to the `/login` endpoint of CAS as 
 ```bash
 /cas/login?service=https://...&token=<TOKEN_VALUE>
 ```
+
+The `token` parameter may also be passed as a request header.
 
 ## Configuration
 
@@ -88,6 +92,10 @@ Configure the appropriate service in your service registry to hold the secrets:
     "jwtEncryptionSecretMethod" : {
       "@class" : "org.apereo.cas.services.DefaultRegisteredServiceProperty",
       "values" : [ "java.util.HashSet", [ "A192CBC-HS384" ] ]
+    },
+    "jwtSecretsAreBase64Encoded" : {
+       "@class" : "org.apereo.cas.services.DefaultRegisteredServiceProperty",
+       "values" : [ "java.util.HashSet", [ "false" ] ]
     }
   }
 }

@@ -4,11 +4,14 @@ import org.apache.commons.lang3.StringUtils;
 import org.apereo.cas.authentication.HandlerResult;
 import org.apereo.cas.authentication.PreventedException;
 import org.apereo.cas.authentication.UsernamePasswordCredential;
+import org.apereo.cas.authentication.principal.PrincipalFactory;
+import org.apereo.cas.services.ServicesManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 
 import javax.security.auth.login.FailedLoginException;
+import javax.sql.DataSource;
 import java.security.GeneralSecurityException;
 
 /**
@@ -23,21 +26,24 @@ import java.security.GeneralSecurityException;
  * @since 3.0.0
  */
 public class SearchModeSearchDatabaseAuthenticationHandler extends AbstractJdbcUsernamePasswordAuthenticationHandler {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(SearchModeSearchDatabaseAuthenticationHandler.class);
     
     private final String fieldUser;
     private final String fieldPassword;
     private final String tableUsers;
 
-    public SearchModeSearchDatabaseAuthenticationHandler(final String fieldUser, final String fieldPassword, final String tableUsers) {
+    public SearchModeSearchDatabaseAuthenticationHandler(final String name, final ServicesManager servicesManager, final PrincipalFactory principalFactory,
+                                                         final Integer order, final DataSource datasource,
+                                                         final String fieldUser, final String fieldPassword, final String tableUsers) {
+        super(name, servicesManager, principalFactory, order, datasource);
         this.fieldUser = fieldUser;
         this.fieldPassword = fieldPassword;
         this.tableUsers = tableUsers;
     }
 
     @Override
-    protected HandlerResult authenticateUsernamePasswordInternal(final UsernamePasswordCredential credential,
-                                                                 final String originalPassword)
+    protected HandlerResult authenticateUsernamePasswordInternal(final UsernamePasswordCredential credential, final String originalPassword)
             throws GeneralSecurityException, PreventedException {
 
         String sql = null;

@@ -23,6 +23,12 @@ public interface OidcConstants {
         PROTECTED
     }
 
+    /** The token. */
+    String TOKEN = "token";
+    
+    /** Token type hint. */
+    String TOKEN_TYPE_HINT = "token_type_hint";
+    
     /**
      * ACR passed in the id token.
      */
@@ -124,9 +130,17 @@ public interface OidcConstants {
     String JWKS_URL = "jwks";
 
     /**
+     * Revocation Endpoint url.
+     */
+    String REVOCATION_URL = "revoke";
+    
+    /**
      * Registration endpoint URL.
      */
     String REGISTRATION_URL = "register";
+
+    /** The introspection url. */
+    String INTROSPECTION_URL = "introspect";
 
     /**
      * Indicates authentication is required and could not be performed.

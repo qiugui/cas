@@ -1,26 +1,61 @@
 apply plugin: "war"
 apply plugin: "org.springframework.boot"
+apply plugin: "com.moowork.node"
 
 description = "Apereo CAS Management Web Application"
+def MAIN_CLASS = "org.apereo.cas.mgmt.web.CasManagementWebApplication"
 
 javadoc {
     enabled false
 }
 
+node {
+    version = "${nodeVersion}"
+    nodeModulesDir = file("./")
+    download = true
+}
+
+npm_install.dependsOn(npm_cache_clean)
+
+task buildClientDev(type: NpmTask, dependsOn: "npm_install", group: "build",
+        description: "Compile client side folder for development") {
+    args = ['run', 'buildDev']
+}
+
+task buildClient(type: NpmTask, dependsOn: "npm_install", group: "build",
+        description: "Compile client side folder for production") {
+    args = ['run', 'build']
+}
+
+task buildClientWatch(type: NpmTask, dependsOn: "npm_install", group: "application", description: "Build and watches the client side assets for rebuilding") {
+    args = ['run', 'buildWatch']
+}
+
 bootRun {
     addResources = true
-    if (Boolean.getBoolean("enableRemoteDebugging")) {
-        jvmArgs = ["-Xrunjdwp:transport=dt_socket,address=5000,server=y,suspend=n"]
+    systemProperties = System.properties
+    def list = []
+    if (rootProject.enableRemoteDebugging) {
+        list.add("-Xrunjdwp:transport=dt_socket,address=5006,server=y,suspend=n")
     }
+    
+    jvmArgs = list
+    dependsOn(buildClientDev)
 }
 
 springBoot {
-    mainClass = "org.apereo.cas.mgmt.web.CasManagementWebApplication"
+    mainClass = MAIN_CLASS
 }
 
 bootRepackage {
-    mainClass = "org.apereo.cas.mgmt.web.CasManagementWebApplication"
-    enabled = !rootProject.publishReleases
+    mainClass = MAIN_CLASS
+    enabled = !rootProject.publishingRelease
+
+    if (rootProject.publishReleases) {
+        dependsOn(buildClient)
+    } else {
+        dependsOn(buildClientDev)
+    }
 }
 
 war {
@@ -34,18 +69,24 @@ war {
                 "Specification-Version": rootProject.currentRevision,
                 "Implementation-Version": project.version)
     }
-    enabled = !rootProject.publishReleases && !rootProject.publishSnapshots
+    enabled = !rootProject.publishingRelease && !rootProject.publishSnapshots
+
+    if (rootProject.publishReleases) {
+        dependsOn(buildClient)
+    } else {
+        dependsOn(buildClientDev)
+    }
+}
+
+task angularTest(type: NpmTask, dependsOn: 'npm_install', group: 'test', description: "Run Angular unit tests") {
+    args = ['run', 'testSingleRun']
 }
 
 dependencies {
-    compile libraries.springboot
-    runtime project(":webapp-mgmt:cas-management-webapp-support")
-
+    runtimeOnly project(":webapp-mgmt:cas-management-webapp-support")
     providedRuntime libraries.springboottomcat
-    runtime libraries.hibernate
-    runtime libraries.groovy
-    compile libraries.spring
-    compile libraries.thymeleaf
-    compile libraries.thymeleafdialect
-    compile libraries.thymeleafboot
+    runtimeOnly libraries.groovy
+    implementation libraries.thymeleaf
+    implementation libraries.thymeleafdialect
+    implementation libraries.thymeleafboot
 }

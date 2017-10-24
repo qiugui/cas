@@ -10,20 +10,23 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.model.support.ignite.IgniteProperties;
 import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.ticket.TicketCatalog;
+import org.apereo.cas.ticket.TicketDefinition;
 import org.apereo.cas.ticket.registry.IgniteTicketRegistry;
 import org.apereo.cas.ticket.registry.TicketRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.cache.expiry.CreatedExpiryPolicy;
 import javax.cache.expiry.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This is {@link IgniteTicketRegistryConfiguration}.
@@ -41,18 +44,16 @@ public class IgniteTicketRegistryConfiguration {
     /**
      * Ignite configuration ignite configuration.
      *
+     * @param ticketCatalog the ticket catalog
      * @return the ignite configuration
      */
     @RefreshScope
     @Bean
-    public IgniteConfiguration igniteConfiguration() {
+    public IgniteConfiguration igniteConfiguration(@Qualifier("ticketCatalog") final TicketCatalog ticketCatalog) {
         final IgniteProperties ignite = casProperties.getTicket().getRegistry().getIgnite();
 
         final IgniteConfiguration config = new IgniteConfiguration();
         final TcpDiscoverySpi spi = new TcpDiscoverySpi();
-
-        spi.setHeartbeatFrequency(ignite.getHeartbeatFrequency());
-        spi.setJoinTimeout(ignite.getJoinTimeout());
 
         if (!StringUtils.isEmpty(ignite.getLocalAddress())) {
             spi.setLocalAddress(ignite.getLocalAddress());
@@ -60,42 +61,50 @@ public class IgniteTicketRegistryConfiguration {
         if (ignite.getLocalPort() != -1) {
             spi.setLocalPort(ignite.getLocalPort());
         }
+        spi.setJoinTimeout(ignite.getJoinTimeout());
+        spi.setAckTimeout(ignite.getAckTimeout());
         spi.setNetworkTimeout(ignite.getNetworkTimeout());
         spi.setSocketTimeout(ignite.getSocketTimeout());
         spi.setThreadPriority(ignite.getThreadPriority());
         spi.setForceServerMode(ignite.isForceServerMode());
 
         final TcpDiscoveryVmIpFinder finder = new TcpDiscoveryVmIpFinder();
-        finder.setAddresses(StringUtils.commaDelimitedListToSet(ignite.getIgniteAddresses()));
+        finder.setAddresses(ignite.getIgniteAddress());
         spi.setIpFinder(finder);
         config.setDiscoverySpi(spi);
-
-        final List<CacheConfiguration> configurations = new ArrayList<>();
-
-        final CacheConfiguration ticketsCache = new CacheConfiguration();
-        ticketsCache.setName(ignite.getTicketsCache().getCacheName());
-        ticketsCache.setCacheMode(CacheMode.valueOf(ignite.getTicketsCache().getCacheMode()));
-        ticketsCache.setAtomicityMode(CacheAtomicityMode.valueOf(ignite.getTicketsCache().getAtomicityMode()));
-        ticketsCache.setWriteSynchronizationMode(
-                CacheWriteSynchronizationMode.valueOf(
-                        ignite.getTicketsCache().getWriteSynchronizationMode()));
-        ticketsCache.setExpiryPolicyFactory(
-                CreatedExpiryPolicy.factoryOf(new Duration(TimeUnit.SECONDS,
-                        casProperties.getTicket().getTgt().getMaxTimeToLiveInSeconds())));
-
-        configurations.add(ticketsCache);
-
-        config.setCacheConfiguration(configurations.toArray(new CacheConfiguration[]{}));
+        final Collection<CacheConfiguration> cacheConfigurations = buildIgniteTicketCaches(ignite, ticketCatalog);
+        config.setCacheConfiguration(cacheConfigurations.toArray(new CacheConfiguration[]{}));
+        config.setClientMode(ignite.isClientMode());
 
         return config;
     }
 
-    @Bean(name = {"igniteTicketRegistry", "ticketRegistry"})
+    private static Collection<CacheConfiguration> buildIgniteTicketCaches(final IgniteProperties ignite,
+                                                                          final TicketCatalog ticketCatalog) {
+        final Collection<TicketDefinition> definitions = ticketCatalog.findAll();
+        return definitions
+                .stream()
+                .map(t -> {
+                    final CacheConfiguration ticketsCache = new CacheConfiguration();
+                    ticketsCache.setName(t.getProperties().getStorageName());
+                    ticketsCache.setCacheMode(CacheMode.valueOf(ignite.getTicketsCache().getCacheMode()));
+                    ticketsCache.setAtomicityMode(CacheAtomicityMode.valueOf(ignite.getTicketsCache().getAtomicityMode()));
+                    final CacheWriteSynchronizationMode writeSync =
+                            CacheWriteSynchronizationMode.valueOf(ignite.getTicketsCache().getWriteSynchronizationMode());
+                    ticketsCache.setWriteSynchronizationMode(writeSync);
+                    final Duration duration = new Duration(TimeUnit.SECONDS, t.getProperties().getStorageTimeout());
+                    ticketsCache.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(duration));
+                    return ticketsCache;
+                })
+                .collect(Collectors.toSet());
+    }
+
+    @Bean
     @RefreshScope
-    public TicketRegistry igniteTicketRegistry() {
+    public TicketRegistry ticketRegistry(@Qualifier("ticketCatalog") final TicketCatalog ticketCatalog) {
         final IgniteProperties igniteProperties = casProperties.getTicket().getRegistry().getIgnite();
-        final IgniteTicketRegistry r = new IgniteTicketRegistry(igniteConfiguration(), igniteProperties);
-        r.setCipherExecutor(Beans.newTicketRegistryCipherExecutor(igniteProperties.getCrypto()));
+        final IgniteTicketRegistry r = new IgniteTicketRegistry(ticketCatalog, igniteConfiguration(ticketCatalog), igniteProperties);
+        r.setCipherExecutor(Beans.newTicketRegistryCipherExecutor(igniteProperties.getCrypto(), "ignite"));
         return r;
     }
 }

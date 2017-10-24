@@ -7,6 +7,7 @@ import net.shibboleth.idp.attribute.resolver.impl.AttributeResolverImpl;
 import org.apereo.cas.configuration.CasConfigurationProperties;
 import org.apereo.cas.configuration.support.Beans;
 import org.apereo.cas.persondir.support.ShibbolethPersonAttributeDao;
+import org.apereo.cas.util.CollectionUtils;
 import org.apereo.services.persondir.IPersonAttributeDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +23,11 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -52,15 +53,16 @@ public class ShibbolethAttributeResolverConfiguration {
     @Autowired
     private CasConfigurationProperties casProperties;
 
-    @Bean(name = {"shibbolethPersonAttributeDao", "attributeRepository"})
-    public IPersonAttributeDao shibbolethPersonAttributeDao() {
+    @Bean
+    public IPersonAttributeDao attributeRepository() {
         try {
             final PropertyPlaceholderConfigurer cfg = new PropertyPlaceholderConfigurer();
             final Map<String, Object> result = new HashMap<>();
             environment.getPropertySources().forEach(s -> {
                 if (s instanceof EnumerablePropertySource<?>) {
                     final EnumerablePropertySource<?> ps = (EnumerablePropertySource<?>) s;
-                    Arrays.asList(ps.getPropertyNames()).forEach(key -> result.put(key, ps.getProperty(key)));
+                    final List<String> names = CollectionUtils.wrapList(ps.getPropertyNames());
+                    names.forEach(key -> result.put(key, ps.getProperty(key)));
                 }
             });
             final Properties p = new Properties();
@@ -71,9 +73,9 @@ public class ShibbolethAttributeResolverConfiguration {
             final ApplicationContext tempApplicationContext = SpringSupport.newContext(
                     getClass().getName(),
                     casProperties.getShibAttributeResolver().getResources(),
-                    Collections.singletonList(cfg),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
+                    CollectionUtils.wrap(cfg),
+                    new ArrayList<>(0),
+                    new ArrayList<>(0),
                     this.applicationContext
             );
 

@@ -1,47 +1,58 @@
 package org.apereo.cas.configuration.model.support.jpa.ticketregistry;
 
-import org.apereo.cas.configuration.model.core.util.CryptographyProperties;
+import org.apereo.cas.configuration.model.core.util.EncryptionRandomizedSigningJwtCryptographyProperties;
 import org.apereo.cas.configuration.model.support.jpa.AbstractJpaProperties;
 import org.apereo.cas.configuration.support.Beans;
+import org.apereo.cas.configuration.support.RequiresModule;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import javax.persistence.LockModeType;
+
 /**
- * Configuration properties class for ticketreg.database.
+ * Common properties for jpa ticket reg.
  *
  * @author Dmitriy Kopylenko
  * @since 5.0.0
  */
-
+@RequiresModule(name = "cas-server-support-jpa-ticket-registry")
 public class JpaTicketRegistryProperties extends AbstractJpaProperties {
 
-    /** Default lock timeout is 1 hour. */
+    /**
+     * Default lock timeout is 1 hour.
+     */
     public static final String DEFAULT_LOCK_TIMEOUT = "PT1H";
-    
-    private boolean jpaLockingTgtEnabled = true;
-    
+
+    private static final long serialVersionUID = -8053839523783801072L;
+
+    /**
+     * Ticket locking type. Acceptable values are
+     * {@code READ,WRITE,OPTIMISTIC,OPTIMISTIC_FORCE_INCREMENT,PESSIMISTIC_READ,
+     * PESSIMISTIC_WRITE,PESSIMISTIC_FORCE_INCREMENT,NONE}.
+     */
+    private LockModeType ticketLockType = LockModeType.NONE;
+
+    /**
+     * Indicates the lock duration when one is about to be acquired by the cleaner.
+     */
     private String jpaLockingTimeout = DEFAULT_LOCK_TIMEOUT;
 
+    /**
+     * Crypto settings for the registry.
+     */
     @NestedConfigurationProperty
-    private CryptographyProperties crypto = new CryptographyProperties();
+    private EncryptionRandomizedSigningJwtCryptographyProperties crypto = new EncryptionRandomizedSigningJwtCryptographyProperties();
 
     public JpaTicketRegistryProperties() {
         super.setUrl("jdbc:hsqldb:mem:cas-ticket-registry");
+        this.crypto.setEnabled(false);
     }
-    
-    public CryptographyProperties getCrypto() {
+
+    public EncryptionRandomizedSigningJwtCryptographyProperties getCrypto() {
         return crypto;
     }
 
-    public void setCrypto(final CryptographyProperties crypto) {
+    public void setCrypto(final EncryptionRandomizedSigningJwtCryptographyProperties crypto) {
         this.crypto = crypto;
-    }
-    
-    public boolean isJpaLockingTgtEnabled() {
-        return jpaLockingTgtEnabled;
-    }
-
-    public void setJpaLockingTgtEnabled(final boolean jpaLockingTgtEnabled) {
-        this.jpaLockingTgtEnabled = jpaLockingTgtEnabled;
     }
 
     public long getJpaLockingTimeout() {
@@ -50,5 +61,13 @@ public class JpaTicketRegistryProperties extends AbstractJpaProperties {
 
     public void setJpaLockingTimeout(final String jpaLockingTimeout) {
         this.jpaLockingTimeout = jpaLockingTimeout;
+    }
+
+    public LockModeType getTicketLockType() {
+        return ticketLockType;
+    }
+
+    public void setTicketLockType(final LockModeType ticketLockType) {
+        this.ticketLockType = ticketLockType;
     }
 }

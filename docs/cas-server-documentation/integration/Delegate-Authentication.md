@@ -3,19 +3,15 @@ layout: default
 title: CAS - Delegate Authentication
 ---
 
-<p align="center">
-  <img src="https://pac4j.github.io/pac4j/img/logo-cas.png" width="150" />
-</p>
-
-# Delegate Authentication
+# Delegated Authentication
 
 CAS can act as a client using the [pac4j security engine](https://github.com/pac4j/pac4j) and delegate the authentication to:
 
-* Another CAS server
-* An OAuth provider: Facebook, Twitter, Google, LinkedIn, Yahoo and several other providers.
-* An OpenID provider: myopenid.com
-* A SAML identity provider
-* An OpenID Connect identity provider.
+* CAS servers
+* SAML2 identity providers
+* OAuth2 providers such as Facebook, Twitter, Google, LinkedIn, Yahoo, etc
+* OpenID providers
+* OpenID Connect identity providers
 
 Support is enabled by including the following dependency in the WAR overlay:
 
@@ -27,13 +23,16 @@ Support is enabled by including the following dependency in the WAR overlay:
 </dependency>
 ```
 
+<div class="alert alert-info"><strong>Remember</strong><p>Delegated authentication always assumes the originator of the authentication request is a CAS client; an
+application that understands CAS protocol and can validate a service ticket. Clients that use other protocols (SAML2, OAuth, etc) with CAS cannot today take advantage of delegated authentication scenarios. Support for this behavior may be worked out in future releases.</p></div>
+
 ## Register Providers
 
 An identity provider is a server which can authenticate users (like Google, Yahoo...) instead of a CAS server.
 If you want to delegate the CAS authentication to Twitter for example, you have to add an
 OAuth client for the Twitter provider, which will be done automatically for you once provider settings are taught to CAS.
 
-To see the relevant list of CAS properties, please [review this guide](../installation/Configuration-Properties.html).
+To see the relevant list of CAS properties, please [review this guide](../installation/Configuration-Properties.html#pac4j-delegated-authn).
 
 Notice that for each OAuth provider, the CAS server is considered as an OAuth client and therefore should be declared as
 an OAuth client at the OAuth provider. After the declaration, a key and a secret is given by the OAuth provider which has
@@ -52,11 +51,6 @@ this one can be created only from the technical identifier received from the ext
 or as a "typed identifier" (like `FacebookProfile#1234`), which is the default.
 
 To see the relevant list of CAS properties, please [review this guide](../installation/Configuration-Properties.html#pac4j-delegated-authn).
-
-## Demo
-
-Take a look at [cas-pac4j-oauth-demo](https://github.com/leleuj/cas-pac4j-oauth-demo)
-to see this authentication delegation mechanism in action.
 
 ## Returned Payload
 

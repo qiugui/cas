@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class InfinispanTicketRegistry extends AbstractTicketRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(InfinispanTicketRegistry.class);
-    
-    private Cache<String, Ticket> cache;
+
+    private final Cache<String, Ticket> cache;
 
     /**
      * Instantiates a new Infinispan ticket registry.
@@ -34,7 +34,8 @@ public class InfinispanTicketRegistry extends AbstractTicketRegistry {
 
     @Override
     public Ticket updateTicket(final Ticket ticket) {
-        this.cache.put(ticket.getId(), ticket);
+        final Ticket encodedTicket = encodeTicket(ticket);
+        this.cache.put(encodedTicket.getId(), encodedTicket);
         return ticket;
     }
 
@@ -42,15 +43,15 @@ public class InfinispanTicketRegistry extends AbstractTicketRegistry {
     public void addTicket(final Ticket ticketToAdd) {
         final Ticket ticket = encodeTicket(ticketToAdd);
 
-        final long idleTime = ticket.getExpirationPolicy().getTimeToIdle() <= 0
-                ? ticket.getExpirationPolicy().getTimeToLive()
-                : ticket.getExpirationPolicy().getTimeToIdle();
+        final long idleTime = ticketToAdd.getExpirationPolicy().getTimeToIdle() <= 0
+                ? ticketToAdd.getExpirationPolicy().getTimeToLive()
+                : ticketToAdd.getExpirationPolicy().getTimeToIdle();
 
         LOGGER.debug("Adding ticket [{}] to cache store to live [{}] seconds and stay idle for [{}]",
-                ticket.getId(), ticket.getExpirationPolicy().getTimeToLive(), idleTime);
+                ticketToAdd.getId(), ticketToAdd.getExpirationPolicy().getTimeToLive(), idleTime);
 
         this.cache.put(ticket.getId(), ticket,
-                ticket.getExpirationPolicy().getTimeToLive(), TimeUnit.SECONDS,
+                ticketToAdd.getExpirationPolicy().getTimeToLive(), TimeUnit.SECONDS,
                 idleTime, TimeUnit.SECONDS);
     }
 
@@ -60,13 +61,19 @@ public class InfinispanTicketRegistry extends AbstractTicketRegistry {
         if (ticketId == null) {
             return null;
         }
-        return Ticket.class.cast(cache.get(encTicketId));
+        final Ticket result = decodeTicket(Ticket.class.cast(cache.get(encTicketId)));
+        if (result != null && result.isExpired()) {
+            LOGGER.debug("Ticket [{}] has expired and is now removed from the cache", result.getId());
+            this.cache.remove(encTicketId);
+            return null;
+        }
+        return result;
     }
 
     @Override
     public boolean deleteSingleTicket(final String ticketId) {
-        this.cache.remove(ticketId);
-        return getTicket(ticketId) == null;
+        this.cache.remove(encodeTicketId(ticketId));
+        return true;
     }
 
     @Override
@@ -75,12 +82,9 @@ public class InfinispanTicketRegistry extends AbstractTicketRegistry {
         this.cache.clear();
         return size;
     }
-    
+
     /**
      * Retrieve all tickets from the registry.
-     * <p>
-     * Note! Usage of this method can be computational and I/O intensive and should not be used for other than
-     * debugging.
      *
      * @return collection of tickets currently stored in the registry. Tickets
      * might or might not be valid i.e. expired.

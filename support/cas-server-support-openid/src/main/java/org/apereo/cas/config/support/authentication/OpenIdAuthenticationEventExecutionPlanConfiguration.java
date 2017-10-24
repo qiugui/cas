@@ -1,10 +1,11 @@
 package org.apereo.cas.config.support.authentication;
 
-import org.apereo.cas.authentication.AuthenticationEventExecutionPlan;
+import org.apereo.cas.authentication.AuthenticationEventExecutionPlanConfigurer;
 import org.apereo.cas.authentication.AuthenticationHandler;
 import org.apereo.cas.authentication.principal.DefaultPrincipalFactory;
 import org.apereo.cas.authentication.principal.PrincipalFactory;
 import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.apereo.cas.configuration.model.support.openid.OpenIdProperties;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.support.openid.authentication.handler.support.OpenIdCredentialsAuthenticationHandler;
 import org.apereo.cas.support.openid.authentication.principal.OpenIdPrincipalResolver;
@@ -21,11 +22,12 @@ import org.springframework.context.annotation.Configuration;
  * This is {@link OpenIdAuthenticationEventExecutionPlanConfiguration}.
  *
  * @author Misagh Moayyed
+ * @author Dmitriy Kopylenko
  * @since 5.1.0
  */
 @Configuration("openIdAuthenticationEventExecutionPlanConfiguration")
 @EnableConfigurationProperties(CasConfigurationProperties.class)
-public class OpenIdAuthenticationEventExecutionPlanConfiguration implements AuthenticationEventExecutionPlanConfigurer {
+public class OpenIdAuthenticationEventExecutionPlanConfiguration {
     @Autowired
     @Qualifier("servicesManager")
     private ServicesManager servicesManager;
@@ -43,20 +45,15 @@ public class OpenIdAuthenticationEventExecutionPlanConfiguration implements Auth
     
     @Bean
     public AuthenticationHandler openIdCredentialsAuthenticationHandler() {
-        final OpenIdCredentialsAuthenticationHandler h = new OpenIdCredentialsAuthenticationHandler(ticketRegistry);
-        h.setPrincipalFactory(openidPrincipalFactory());
-        h.setServicesManager(servicesManager);
-        h.setName(casProperties.getAuthn().getOpenid().getName());
-        return h;
+        final OpenIdProperties openid = casProperties.getAuthn().getOpenid();
+        return new OpenIdCredentialsAuthenticationHandler(openid.getName(), servicesManager, openidPrincipalFactory(), ticketRegistry);
     }
 
     @Bean
     public OpenIdPrincipalResolver openIdPrincipalResolver() {
-        final OpenIdPrincipalResolver r = new OpenIdPrincipalResolver();
-        r.setAttributeRepository(attributeRepository);
-        r.setPrincipalAttributeName(casProperties.getAuthn().getOpenid().getPrincipal().getPrincipalAttribute());
-        r.setReturnNullIfNoAttributes(casProperties.getAuthn().getOpenid().getPrincipal().isReturnNull());
-        r.setPrincipalFactory(openidPrincipalFactory());
+        final OpenIdPrincipalResolver r = new OpenIdPrincipalResolver(attributeRepository, openidPrincipalFactory(),
+                casProperties.getAuthn().getOpenid().getPrincipal().isReturnNull(),
+                casProperties.getAuthn().getOpenid().getPrincipal().getPrincipalAttribute());
         return r;
     }
 
@@ -66,8 +63,9 @@ public class OpenIdAuthenticationEventExecutionPlanConfiguration implements Auth
         return new DefaultPrincipalFactory();
     }
 
-    @Override
-    public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
-        plan.registerAuthenticationHandlerWithPrincipalResolver(openIdCredentialsAuthenticationHandler(), openIdPrincipalResolver());
+    @ConditionalOnMissingBean(name = "openIdAuthenticationEventExecutionPlanConfigurer")
+    @Bean
+    public AuthenticationEventExecutionPlanConfigurer openIdAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> plan.registerAuthenticationHandlerWithPrincipalResolver(openIdCredentialsAuthenticationHandler(), openIdPrincipalResolver());
     }
 }

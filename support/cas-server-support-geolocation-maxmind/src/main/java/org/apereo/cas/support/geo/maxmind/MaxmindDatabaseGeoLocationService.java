@@ -1,6 +1,5 @@
 package org.apereo.cas.support.geo.maxmind;
 
-import com.google.common.base.Throwables;
 import com.maxmind.db.CHMCache;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
@@ -26,22 +25,31 @@ public class MaxmindDatabaseGeoLocationService extends AbstractGeoLocationServic
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MaxmindDatabaseGeoLocationService.class);
 
-    private DatabaseReader cityDatabaseReader;
-    private DatabaseReader countryDatabaseReader;
+    private final DatabaseReader cityDatabaseReader;
+    private final DatabaseReader countryDatabaseReader;
 
     public MaxmindDatabaseGeoLocationService(final MaxmindProperties properties) {
         try {
+
             if (properties.getCityDatabase().exists()) {
                 this.cityDatabaseReader = new DatabaseReader.Builder(properties.getCityDatabase().getFile())
                                 .withCache(new CHMCache()).build();
+            } else {
+                this.cityDatabaseReader = null;
             }
 
             if (properties.getCountryDatabase().exists()) {
                 this.countryDatabaseReader = new DatabaseReader.Builder(properties.getCountryDatabase().getFile())
                                 .withCache(new CHMCache()).build();
+            } else {
+                this.countryDatabaseReader = null;
             }
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
+        }
+
+        if (this.cityDatabaseReader == null && this.countryDatabaseReader == null) {
+            throw new IllegalArgumentException("No geolocation services have been defined for Maxmind");
         }
     }
 

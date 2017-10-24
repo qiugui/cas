@@ -1,9 +1,12 @@
 package org.apereo.cas.web.view;
 
-import com.google.common.base.Throwables;
 import org.apereo.cas.CasProtocolConstants;
 import org.apereo.cas.CasViewConstants;
 import org.apereo.cas.authentication.CoreAuthenticationTestUtils;
+import org.apereo.cas.authentication.DefaultAuthenticationContextValidator;
+import org.apereo.cas.authentication.DefaultAuthenticationServiceSelectionPlan;
+import org.apereo.cas.authentication.DefaultAuthenticationServiceSelectionStrategy;
+import org.apereo.cas.authentication.DefaultMultifactorTriggerSelectionStrategy;
 import org.apereo.cas.authentication.ProtocolAttributeEncoder;
 import org.apereo.cas.authentication.UsernamePasswordCredential;
 import org.apereo.cas.authentication.support.DefaultCasProtocolAttributeEncoder;
@@ -11,8 +14,9 @@ import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.util.EncodingUtils;
 import org.apereo.cas.util.cipher.NoOpCipherExecutor;
 import org.apereo.cas.util.crypto.PrivateKeyFactoryBean;
+import org.apereo.cas.web.AbstractServiceValidateController;
 import org.apereo.cas.web.AbstractServiceValidateControllerTests;
-import org.junit.Before;
+import org.apereo.cas.web.ServiceValidateController;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +38,7 @@ import javax.crypto.Cipher;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.security.PrivateKey;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 import static org.junit.Assert.*;
@@ -46,7 +51,7 @@ import static org.junit.Assert.*;
  * @since 4.0.0
  */
 @DirtiesContext
-@TestPropertySource(properties = {"cas.clearpass.cacheCredential=true", "cas.clearpass.cipherEnabled=false"})
+@TestPropertySource(properties = {"cas.clearpass.cacheCredential=true", "cas.clearpass.crypto.enabled=false"})
 public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(Cas30ResponseViewTests.class);
 
@@ -66,15 +71,26 @@ public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTes
     @Qualifier("cas3ServiceFailureView")
     private View cas3ServiceFailureView;
 
-    @Before
-    public void setUp() {
-        this.serviceValidateController.setFailureView(cas3ServiceFailureView);
-        this.serviceValidateController.setSuccessView(cas3SuccessView);
-        this.serviceValidateController.setJsonView(cas3ServiceJsonView);
+    @Override
+    public AbstractServiceValidateController getServiceValidateControllerInstance() throws Exception {
+        return new ServiceValidateController(
+                getValidationSpecification(),
+                getAuthenticationSystemSupport(), getServicesManager(),
+                getCentralAuthenticationService(),
+                getProxyHandler(),
+                getArgumentExtractor(),
+                new DefaultMultifactorTriggerSelectionStrategy("", ""),
+                new DefaultAuthenticationContextValidator("", "OPEN", "test"),
+                cas3ServiceJsonView, cas3SuccessView,
+                cas3ServiceFailureView, "authenticationContext",
+                new LinkedHashSet<>()
+        );
     }
 
     private Map<?, ?> renderView() throws Exception {
         final ModelAndView modelAndView = this.getModelAndViewUponServiceValidationWithSecurePgtUrl();
+        LOGGER.warn("Retrieved model and view [{}]", modelAndView.getModel());
+
         final MockHttpServletRequest req = new MockHttpServletRequest(new MockServletContext());
         req.setAttribute(RequestContext.WEB_APPLICATION_CONTEXT_ATTRIBUTE, new GenericWebApplicationContext(req.getServletContext()));
 
@@ -87,12 +103,14 @@ public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTes
 
             @Override
             public void render(final Map<String, ?> map, final HttpServletRequest request, final HttpServletResponse response) throws Exception {
+                LOGGER.warn("Setting attribute [{}]", map.keySet());
                 map.forEach(request::setAttribute);
             }
         };
 
         final Cas30ResponseView view = new Cas30ResponseView(true, encoder, servicesManager,
-                "attribute", viewDelegated, true);
+                "attribute", viewDelegated, true,
+                new DefaultAuthenticationServiceSelectionPlan(new DefaultAuthenticationServiceSelectionStrategy()));
         final MockHttpServletResponse resp = new MockHttpServletResponse();
         view.render(modelAndView.getModel(), req, resp);
         return (Map<?, ?>) req.getAttribute(CasProtocolConstants.VALIDATION_CAS_MODEL_ATTRIBUTE_NAME_ATTRIBUTES);
@@ -120,6 +138,7 @@ public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTes
     @Test
     public void verifyProxyGrantingTicketAsAuthenticationAttributeCanDecrypt() throws Exception {
         final Map<?, ?> attributes = renderView();
+        LOGGER.warn("Attributes are [{}]", attributes.keySet());
         assertTrue(attributes.containsKey(CasViewConstants.MODEL_ATTRIBUTE_NAME_PROXY_GRANTING_TICKET));
 
         final String encodedPgt = (String) attributes.get(CasViewConstants.MODEL_ATTRIBUTE_NAME_PROXY_GRANTING_TICKET);
@@ -131,7 +150,7 @@ public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTes
         try {
             final PrivateKeyFactoryBean factory = new PrivateKeyFactoryBean();
             factory.setAlgorithm("RSA");
-            factory.setLocation(new ClassPathResource("RSA1024Private.p8"));
+            factory.setLocation(new ClassPathResource("keys/RSA4096Private.p8"));
             factory.setSingleton(false);
             final PrivateKey privateKey = factory.getObject();
 
@@ -147,7 +166,7 @@ public class Cas30ResponseViewTests extends AbstractServiceValidateControllerTes
             final byte[] cipherData = cipher.doFinal(cred64);
             return new String(cipherData);
         } catch (final Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 }

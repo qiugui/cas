@@ -1,13 +1,12 @@
 package org.apereo.cas.services;
 
+import org.apereo.cas.support.events.service.CasRegisteredServiceLoadedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.util.Assert;
 
-import javax.annotation.PostConstruct;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -21,50 +20,22 @@ import java.util.regex.Pattern;
  * @author Misagh Moayyed
  * @since 4.1
  */
-public class MongoServiceRegistryDao implements ServiceRegistryDao {
+public class MongoServiceRegistryDao extends AbstractServiceRegistryDao {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MongoServiceRegistryDao.class);
 
-    private String collectionName;
-
-    private boolean dropCollection;
-
-    private MongoOperations mongoTemplate;
+    private final String collectionName;
+    private final MongoOperations mongoTemplate;
 
     /**
      * Ctor.
      *
      * @param mongoTemplate  mongoTemplate
      * @param collectionName collectionName
-     * @param dropCollection dropCollection
      */
-    public MongoServiceRegistryDao(final MongoOperations mongoTemplate, final String collectionName, final boolean dropCollection) {
+    public MongoServiceRegistryDao(final MongoOperations mongoTemplate, final String collectionName) {
         this.mongoTemplate = mongoTemplate;
         this.collectionName = collectionName;
-        this.dropCollection = dropCollection;
-    }
-
-    public MongoServiceRegistryDao() {
-    }
-
-    /**
-     * Initialized registry post construction.
-     * Will decide if the configured collection should
-     * be dropped and recreated.
-     */
-    @PostConstruct
-    public void init() {
-        Assert.notNull(this.mongoTemplate);
-
-        if (this.dropCollection) {
-            LOGGER.debug("Dropping database collection: [{}]", this.collectionName);
-            this.mongoTemplate.dropCollection(this.collectionName);
-        }
-
-        if (!this.mongoTemplate.collectionExists(this.collectionName)) {
-            LOGGER.debug("Creating database collection: [{}]", this.collectionName);
-            this.mongoTemplate.createCollection(this.collectionName);
-        }
     }
 
     @Override
@@ -92,7 +63,9 @@ public class MongoServiceRegistryDao implements ServiceRegistryDao {
 
     @Override
     public List<RegisteredService> load() {
-        return this.mongoTemplate.findAll(RegisteredService.class, this.collectionName);
+        final List<RegisteredService> list = this.mongoTemplate.findAll(RegisteredService.class, this.collectionName);
+        list.stream().forEach(s -> publishEvent(new CasRegisteredServiceLoadedEvent(this, s)));
+        return list;
     }
 
     @Override
